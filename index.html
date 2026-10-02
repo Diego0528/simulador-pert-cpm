@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador PERT/CPM y Flujo Máximo</title>
+<style>
+:root {
+  --bg: #F4F6F8; --surface: #FFFFFF; --text: #1B2430; --muted: #5F6B7A; --border: #D5DBE1;
+  --primario: #1F3A5F; --critico: #C0392B; --ok: #2E8B57; --flujo: #2E86C1; --saturado: #E67E22;
+  --nuevo: #D6EAF8; --suave: #EEF2F6; --input: #FFFFFF; --sobre-primario: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161D; --surface: #1A222C; --text: #E6EBF0; --muted: #9AA6B4; --border: #2E3A48;
+    --primario: #8FB3E0; --critico: #E8705F; --ok: #5CC28C; --flujo: #5DADE2; --saturado: #F0A35E;
+    --nuevo: #1E3A52; --suave: #222C38; --input: #11161D; --sobre-primario: #11161D;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161D; --surface: #1A222C; --text: #E6EBF0; --muted: #9AA6B4; --border: #2E3A48;
+  --primario: #8FB3E0; --critico: #E8705F; --ok: #5CC28C; --flujo: #5DADE2; --saturado: #F0A35E;
+  --nuevo: #1E3A52; --suave: #222C38; --input: #11161D; --sobre-primario: #11161D;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 16px/1.45 Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
+header.sup { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 12px; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
+header.sup h1 { font-size: 1rem; margin: 0; color: var(--primario); white-space: nowrap; padding: 8px 0; }
+nav { display: flex; gap: 2px; overflow-x: auto; flex: 1 1 auto; }
+nav button { flex: 0 0 auto; border: 0; background: none; color: var(--muted); padding: 12px 12px 9px; font: inherit; font-weight: 700; border-bottom: 3px solid transparent; cursor: pointer; }
+nav button[aria-selected="true"] { color: var(--primario); border-bottom-color: var(--primario); }
+.iconos { display: flex; gap: 6px; }
+.iconos button { font: inherit; background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
+main { padding: 10px 12px; }
+section[hidden], [hidden] { display: none !important; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 8px; }
+.grupo { display: inline-flex; border: 1px solid var(--border); border-radius: 18px; overflow: hidden; flex-wrap: wrap; }
+.grupo button { font: inherit; border: 0; background: var(--surface); color: var(--text); padding: 5px 12px; cursor: pointer; }
+.grupo button[aria-pressed="true"] { background: var(--primario); color: var(--sobre-primario); }
+.pasos { display: inline-flex; gap: 8px; align-items: center; }
+.pasos .num { font-weight: 700; min-width: 7.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.btn { font: inherit; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--primario); background: var(--primario); color: var(--sobre-primario); cursor: pointer; }
+.btn.sec { background: transparent; color: var(--primario); }
+.btn:disabled { opacity: .4; cursor: default; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+.clase { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(320px, 1fr); gap: 10px; height: calc(100dvh - 128px); min-height: 430px; }
+#t-cpm .clase { grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr); }
+.diag { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: auto; min-height: 0; padding: 6px; }
+.diag > svg { width: 100%; height: 100%; max-height: 100%; }
+.diag > .tabla-diag { width: 100%; align-self: flex-start; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; overflow: auto; min-height: 0; }
+.panel h3 { margin: 2px 0 8px; color: var(--primario); font-size: 1.25rem; line-height: 1.2; }
+.etapa { display: inline-block; font-size: .78rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); background: var(--suave); border-radius: 10px; padding: 2px 8px; }
+.decir { border-left: 4px solid var(--flujo); background: color-mix(in srgb, var(--flujo) 9%, transparent); padding: 8px 10px; margin: 10px 0; font-size: 1.02rem; }
+.pregunta { border: 2px solid var(--saturado); background: color-mix(in srgb, var(--saturado) 10%, transparent); border-radius: 8px; padding: 10px 12px; margin: 10px 0; font-size: 1.12rem; font-weight: 700; }
+.parada { border: 2px solid var(--ok); border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.aviso { border-left: 4px solid var(--saturado); padding: 6px 10px; margin: 8px 0; background: color-mix(in srgb, var(--saturado) 10%, transparent); }
+.error { border-left: 4px solid var(--critico); padding: 6px 10px; margin: 8px 0; background: color-mix(in srgb, var(--critico) 10%, transparent); }
+.calc { font-family: Consolas, "Cascadia Mono", monospace; font-size: .98rem; background: var(--suave); padding: 8px 10px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; margin: 8px 0; }
+.ideas { padding-left: 1.2em; font-size: 1.05rem; } .ideas li { margin: 6px 0; }
+.progreso { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.progreso button { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--primario); background: transparent; padding: 0; cursor: pointer; }
+.progreso button.hecho { background: color-mix(in srgb, var(--primario) 35%, transparent); }
+.progreso button.actual { background: var(--primario); transform: scale(1.25); }
+.progreso button.preg { border-color: var(--saturado); border-width: 2px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.card h2 { font-size: 1.05rem; margin: 0 0 4px; color: var(--primario); }
+.ayuda { margin: 0 0 10px; color: var(--muted); font-size: .92rem; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; font-variant-numeric: tabular-nums; }
+th, td { border: 1px solid var(--border); padding: 4px 6px; text-align: center; white-space: nowrap; }
+th { background: var(--suave); color: var(--primario); }
+td.izq { text-align: left; white-space: normal; min-width: 170px; }
+tr.critica td:first-child { color: var(--critico); font-weight: 700; }
+tr.marcada td { background: color-mix(in srgb, var(--ok) 14%, transparent); font-weight: 700; }
+tr.invalida td { background: color-mix(in srgb, var(--critico) 15%, transparent); }
+.tabla-diag table { font-size: 1.05rem; } .tabla-diag td, .tabla-diag th { padding: 6px 8px; }
+input[type=number] { width: 4.4em; padding: 3px; font: inherit; text-align: center; background: var(--input); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+input[type=range] { width: 100%; accent-color: var(--primario); }
+.fila { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; }
+.kpi { background: var(--suave); border-radius: 8px; padding: 8px 10px; }
+.kpi b { display: block; font-size: 1.35rem; color: var(--primario); font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--muted); font-size: .82rem; }
+.barra { display: grid; grid-template-columns: 26px 1fr 64px; gap: 6px; align-items: center; font-size: .9rem; margin: 3px 0; }
+.barra .fondo { background: var(--suave); border-radius: 4px; height: 13px; overflow: hidden; }
+.barra .fondo div { height: 100%; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .85rem; color: var(--muted); margin-top: 6px; }
+.leyenda i { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+svg { display: block; }
+svg text { font-family: Calibri, Carlito, "Segoe UI", sans-serif; fill: var(--text); }
+.svgancho { min-width: 760px; width: 100%; height: auto; }
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+.nodo-clic { cursor: pointer; }
+footer { color: var(--muted); font-size: .8rem; text-align: center; padding: 10px; }
+@media (min-width: 900px) { footer { display: none; } }
+@media (max-width: 899px) {
+  .clase { grid-template-columns: 1fr; height: auto; }
+  .diag { min-height: 260px; overflow-x: auto; justify-content: flex-start; }
+  .diag > svg { min-width: 640px; height: auto; }
+  .diag.angosto > svg { min-width: 0; }
+  header.sup h1 { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="sup">
+  <h1>PERT/CPM y Flujo máximo · Hotel Casa Volcán</h1>
+  <nav role="tablist">
+    <button role="tab" data-tab="t-cpm" aria-selected="true">1 · CPM</button>
+    <button role="tab" data-tab="t-pert" aria-selected="false">2 · PERT</button>
+    <button role="tab" data-tab="t-comp" aria-selected="false">3 · Compresión</button>
+    <button role="tab" data-tab="t-flujo" aria-selected="false">4 · Flujo máximo</button>
+  </nav>
+  <div class="iconos">
+    <button id="tema" type="button" title="Tema claro/oscuro" aria-label="Cambiar tema">◐</button>
+    <button id="pantalla" type="button" title="Pantalla completa" aria-label="Pantalla completa">⛶</button>
+  </div>
+</header>
+<main>
+  <section id="t-cpm" class="tab">
+    <div class="ctl">
+      <div class="grupo modos"><button data-m="clase" aria-pressed="true">Clase</button><button data-m="explorar" aria-pressed="false">Explorar</button></div>
+      <div class="pasos solo-clase"><button class="btn sec ant" type="button" aria-label="Paso anterior">◀</button><span class="num"></span><button class="btn sig" type="button">Siguiente ▶</button></div>
+      <label class="chk solo-clase"><input type="checkbox" class="detalle" checked> Pases nivel por nivel</label>
+    </div>
+    <div class="clase solo-clase"><div class="diag"></div><div class="panel"></div></div>
+    <div class="progreso solo-clase"></div>
+    <div class="explorar" hidden>
+      <div class="card">
+        <h2>Tiempos de las actividades (editables)</h2>
+        <p class="ayuda">Editá o, m y p. Todo se recalcula: t<sub>e</sub> = (o + 4m + p)/6, σ² = ((p − o)/6)², pases y holgura = IL − IC. Estos tiempos también se usan en la pestaña PERT (Explorar).</p>
+        <div class="fila"><button class="btn sec" id="reset-cpm" type="button">↺ Restablecer datos del caso</button><span id="msg-cpm"></span></div>
+        <div class="scroll"><table id="tabla-cpm"></table></div>
+      </div>
+      <div class="card"><h2>Red AON <span id="dur-titulo"></span></h2><div class="scroll"><svg id="svg-aon" class="svgancho"></svg></div></div>
+      <div class="card"><h2>Diagrama de Gantt</h2><div class="scroll"><svg id="svg-gantt" class="svgancho"></svg></div></div>
+    </div>
+  </section>
+
+  <section id="t-pert" class="tab" hidden>
+    <div class="ctl">
+      <div class="grupo modos"><button data-m="clase" aria-pressed="true">Clase</button><button data-m="explorar" aria-pressed="false">Explorar</button></div>
+      <div class="pasos solo-clase"><button class="btn sec ant" type="button" aria-label="Paso anterior">◀</button><span class="num"></span><button class="btn sig" type="button">Siguiente ▶</button></div>
+    </div>
+    <div class="clase solo-clase"><div class="diag"></div><div class="panel"></div></div>
+    <div class="progreso solo-clase"></div>
+    <div class="explorar" hidden>
+      <div class="grid2">
+        <div class="card">
+          <h2>Probabilidad de terminar a tiempo</h2>
+          <label for="plazo">Plazo: <b id="plazo-val"></b> días</label>
+          <input type="range" id="plazo" min="30" max="60" step="1">
+          <div class="kpis" id="kpis-prob"></div>
+          <div class="calc" id="calc-prob"></div>
+          <svg id="svg-normal" viewBox="0 0 600 220" style="width:100%;height:auto"></svg>
+        </div>
+        <div class="card">
+          <h2>Monte Carlo (beta-PERT)</h2>
+          <label for="mc-n">Corridas: <b id="mc-n-val"></b></label>
+          <input type="range" id="mc-n" min="1000" max="100000" step="1000" value="100000">
+          <div class="fila"><label>Semilla <input type="number" id="mc-semilla" value="2026" style="width:6em"></label><button class="btn" id="mc-correr" type="button">▶ Correr</button></div>
+          <div id="mc-res"></div>
+          <svg id="svg-hist" viewBox="0 0 600 260" style="width:100%;height:auto"></svg>
+        </div>
+      </div>
+      <div class="card"><h2>Índice de criticidad</h2><p class="ayuda">% de corridas en que cada actividad (y cada ruta) fue parte de la ruta más larga.</p><div id="mc-crit"></div></div>
+    </div>
+  </section>
+
+  <section id="t-comp" class="tab" hidden>
+    <div class="ctl">
+      <div class="grupo modos"><button data-m="clase" aria-pressed="true">Clase</button><button data-m="explorar" aria-pressed="false">Explorar</button></div>
+      <div class="pasos solo-clase"><button class="btn sec ant" type="button" aria-label="Paso anterior">◀</button><span class="num"></span><button class="btn sig" type="button">Siguiente ▶</button></div>
+    </div>
+    <div class="clase solo-clase"><div class="diag"></div><div class="panel"></div></div>
+    <div class="progreso solo-clase"></div>
+    <div class="explorar" hidden>
+      <div class="card">
+        <h2>Costo mínimo para terminar en T días</h2>
+        <p class="ayuda">Enumeración exhaustiva de todas las reducciones enteras (datos del caso; tiempos normales = t<sub>e</sub>).</p>
+        <label for="comp-obj">Duración objetivo: <b id="comp-obj-val"></b> días</label>
+        <input type="range" id="comp-obj" min="28" max="41" step="1">
+        <div class="kpis" id="comp-kpis"></div>
+        <div class="scroll"><table id="comp-tabla"></table></div>
+      </div>
+      <div class="card">
+        <h2>Curva de costo total</h2>
+        <label for="comp-ind">Costo indirecto: <b id="comp-ind-val"></b> por día</label>
+        <input type="range" id="comp-ind" min="0" max="3000" step="100">
+        <div class="kpis" id="comp-kpis2"></div>
+        <svg id="svg-costo" viewBox="0 0 600 270" style="width:100%;height:auto;max-width:780px;margin:auto"></svg>
+      </div>
+    </div>
+  </section>
+
+  <section id="t-flujo" class="tab" hidden>
+    <div class="ctl">
+      <div class="grupo modos"><button data-m="clase" aria-pressed="true">Clase</button><button data-m="construir" aria-pressed="false">Construí tu trayectoria</button><button data-m="whatif" aria-pressed="false">What-if</button></div>
+      <div class="pasos solo-clase"><button class="btn sec ant" type="button" aria-label="Paso anterior">◀</button><span class="num"></span><button class="btn sig" type="button">Siguiente ▶</button></div>
+      <label class="chk solo-clase"><input type="checkbox" class="detalle"> Detallar todas las iteraciones</label>
+      <div class="grupo solo-construir" id="red-cons" hidden><button data-red="hotel" aria-pressed="true">Red del hotel</button><button data-red="practica" aria-pressed="false">Red de práctica</button></div>
+    </div>
+    <div class="clase"><div class="diag"></div><div class="panel"></div></div>
+    <div class="progreso solo-clase"></div>
+  </section>
+</main>
+<footer>Investigación de Operaciones · PERT/CPM y flujo máximo · Funciona sin conexión · Caso ficticio · Teclas: → / ← o el clicker para avanzar</footer>
+<script>
+const DATOS = {"caso": {"meta": {"unidad_tiempo": "días hábiles", "moneda": "Q (quetzales)", "plazo_congreso_dias": 45, "objetivo_compresion_dias": 36, "costo_indirecto_por_dia": 1000, "montecarlo": {"n": 100000, "semilla": 2026, "distribucion": "beta-PERT"}}, "actividades": [{"id": "A", "nombre": "Levantamiento de requerimientos y site survey predictivo", "pred": [], "o": 1, "m": 4, "p": 7, "costo_normal": 2500, "compresion": null}, {"id": "B", "nombre": "Diseño de la red (cobertura, VLANs, cantidad de APs)", "pred": ["A"], "o": 2, "m": 5, "p": 8, "costo_normal": 4000, "compresion": {"tc": 4, "cc": 4900}}, {"id": "C", "nombre": "Aprobación del presupuesto por gerencia", "pred": ["B"], "o": 2, "m": 2, "p": 8, "costo_normal": 500, "compresion": null}, {"id": "D", "nombre": "Compra e importación de APs y switches PoE", "pred": ["C"], "o": 9, "m": 12, "p": 27, "costo_normal": 60000, "compresion": {"tc": 8, "cc": 69000}}, {"id": "E", "nombre": "Tendido de cableado estructurado Cat6", "pred": ["C"], "o": 6, "m": 9, "p": 18, "costo_normal": 18000, "compresion": {"tc": 6, "cc": 20000}}, {"id": "F", "nombre": "Instalación y configuración de switches PoE", "pred": ["D", "E"], "o": 2, "m": 2, "p": 8, "costo_normal": 2500, "compresion": null}, {"id": "G", "nombre": "Montaje físico de access points", "pred": ["D", "E"], "o": 4, "m": 7, "p": 10, "costo_normal": 6000, "compresion": {"tc": 4, "cc": 7800}}, {"id": "H", "nombre": "Configuración del controlador (SSIDs, VLANs, portal cautivo)", "pred": ["D"], "o": 2, "m": 5, "p": 8, "costo_normal": 3500, "compresion": {"tc": 3, "cc": 5100}}, {"id": "I", "nombre": "Certificación del cableado", "pred": ["E"], "o": 1, "m": 4, "p": 7, "costo_normal": 1800, "compresion": null}, {"id": "J", "nombre": "Integración del portal cautivo con el PMS del hotel", "pred": ["H"], "o": 3, "m": 6, "p": 15, "costo_normal": 5000, "compresion": {"tc": 4, "cc": 8000}}, {"id": "K", "nombre": "Pruebas de cobertura y roaming", "pred": ["F", "G", "I"], "o": 3, "m": 3, "p": 15, "costo_normal": 3000, "compresion": {"tc": 3, "cc": 4400}}, {"id": "L", "nombre": "Capacitación al personal de IT y recepción", "pred": ["J"], "o": 1, "m": 1, "p": 7, "costo_normal": 1200, "compresion": {"tc": 1, "cc": 1500}}, {"id": "M", "nombre": "Puesta en marcha (go-live)", "pred": ["K", "L"], "o": 1, "m": 1, "p": 1, "costo_normal": 1000, "compresion": null}], "red_flujo": {"unidad": "1 unidad = 100 Mbps", "origen": "O", "destino": "T", "demanda_congreso_unidades": 18, "nodos": {"O": "Router/firewall de borde (entrada del ISP)", "A": "Switch core principal", "B": "Switch core secundario", "C": "Distribución — Edificio colonial (habitaciones)", "D": "Distribución — Centro de convenciones", "E": "Distribución — Área social (lobby, restaurante, piscina)", "T": "Clientes WiFi (destino ficticio que agrupa los APs de las tres zonas)"}, "arcos": [{"de": "O", "a": "A", "cap": 10}, {"de": "O", "a": "B", "cap": 8}, {"de": "A", "a": "B", "cap": 3}, {"de": "A", "a": "C", "cap": 5}, {"de": "A", "a": "D", "cap": 3}, {"de": "B", "a": "D", "cap": 4}, {"de": "B", "a": "E", "cap": 3}, {"de": "C", "a": "E", "cap": 3}, {"de": "C", "a": "T", "cap": 4}, {"de": "D", "a": "T", "cap": 9}, {"de": "E", "a": "T", "cap": 8}], "secuencia_trayectorias": ["OABDT", "OACT", "OADT", "OBDT", "OBET", "OBACET"]}}, "didactico": {"nota": "Ejemplos didácticos para la clase. No son datos del caso del hotel (esos están en caso.json).", "red_practica": {"unidad": "1 unidad (ejemplo abstracto)", "origen": "O", "destino": "T", "nodos": {"O": "Origen", "A": "Nodo A", "B": "Nodo B", "T": "Destino"}, "arcos": [{"de": "O", "a": "A", "cap": 1}, {"de": "O", "a": "B", "cap": 1}, {"de": "A", "a": "B", "cap": 1}, {"de": "A", "a": "T", "cap": 1}, {"de": "B", "a": "T", "cap": 1}], "secuencia_trayectorias": ["OABT", "OBAT"]}}, "layout": {"aon": {"INICIO": [0.0, 0], "A": [1.75, 0], "B": [3.5, 0], "C": [5.25, 0], "D": [7.0, 1.0], "E": [7.0, -1.4], "H": [8.75, 2.3], "F": [8.75, 0.45], "G": [8.75, -0.95], "I": [8.75, -2.35], "J": [10.5, 2.3], "K": [10.5, -0.25], "L": [12.25, 2.3], "M": [14.0, 0.8], "FIN": [15.75, 0.8]}, "flujo": {"pos": {"O": [0, 0], "A": [1.5, 1.15], "B": [1.5, -1.15], "C": [3.1, 1.75], "D": [2.8, 0], "E": [3.1, -1.75], "T": [4.7, 0]}, "rad": {"C>E": -0.3}, "t_med": {"C>E": 0.27, "D>T": 0.72}, "etiquetas": {"O": "Router", "A": "Core 1", "B": "Core 2", "C": "Habitaciones", "D": "Convenciones", "E": "Área social", "T": "Clientes WiFi"}}, "practica": {"pos": {"O": [0, 0], "A": [1.4, 1.1], "B": [1.4, -1.1], "T": [2.8, 0]}, "etiquetas": {"O": "Origen", "A": "A", "B": "B", "T": "Destino"}}}, "referencia": {"montecarlo": {"n": 100000, "semilla": 2026, "media": 41.62, "desv": 4.15, "plazo": 45, "p_plazo": "79.6 %", "hist": {"b0": 29.0, "ancho": 0.5, "dens": [0.00022, 0.00026, 0.0004, 0.00076, 0.00166, 0.00214, 0.004, 0.00656, 0.00938, 0.01342, 0.01836, 0.02388, 0.0316, 0.03968, 0.04902, 0.05758, 0.06274, 0.07116, 0.0812, 0.08486, 0.08876, 0.0931, 0.09666, 0.09556, 0.096, 0.09482, 0.09024, 0.0851, 0.0827, 0.07658, 0.07012, 0.06248, 0.0569, 0.05174, 0.04588, 0.04004, 0.03554, 0.0314, 0.02854, 0.0233, 0.01868, 0.01588, 0.01326, 0.0108, 0.0083, 0.00694, 0.00508, 0.00432, 0.00346, 0.00258, 0.00144, 0.00128, 0.00096, 0.00086, 0.00064, 0.00036, 0.00032, 0.0002, 0.00014, 8e-05, 4e-05, 0.0, 0.0, 2e-05, 0.0, 2e-05, 0.0]}, "idx_ruta": [{"ruta": "A-B-C-D-H-J-L-M", "p": "70.6 %"}, {"ruta": "A-B-C-D-G-K-M", "p": "23.3 %"}, {"ruta": "A-B-C-E-G-K-M", "p": "5.9 %"}, {"ruta": "A-B-C-E-I-K-M", "p": "0.1 %"}, {"ruta": "A-B-C-D-F-K-M", "p": "0.1 %"}, {"ruta": "A-B-C-E-F-K-M", "p": "0.0 %"}], "idx_act": {"A": "100.0 %", "B": "100.0 %", "C": "100.0 %", "D": "93.9 %", "E": "6.1 %", "F": "0.1 %", "G": "29.2 %", "H": "70.6 %", "I": "0.1 %", "J": "70.6 %", "K": "29.4 %", "L": "70.6 %", "M": "100.0 %"}}}};
+/* Lógica de cálculo del simulador (sin DOM). Se prueba con node: scripts/probar_simulador.js */
+const IO = (() => {
+  // ------------------------------------------------------------ PERT / CPM
+  function pert(acts) {
+    const r = {};
+    for (const a of acts) {
+      r[a.id] = { te: (a.o + 4 * a.m + a.p) / 6, var: ((a.p - a.o) / 6) ** 2 };
+    }
+    return r;
+  }
+
+  function sucesoras(acts) {
+    const s = {};
+    acts.forEach(a => (s[a.id] = []));
+    acts.forEach(a => a.pred.forEach(p => s[p].push(a.id)));
+    return s;
+  }
+
+  function topo(acts) {
+    const hechos = new Set(), orden = [];
+    while (orden.length < acts.length) {
+      for (const a of acts) {
+        if (!hechos.has(a.id) && a.pred.every(p => hechos.has(p))) { orden.push(a.id); hechos.add(a.id); }
+      }
+    }
+    return orden;
+  }
+
+  const EPS = 1e-9;
+
+  function cpm(acts, dur) {
+    const pred = Object.fromEntries(acts.map(a => [a.id, a.pred]));
+    const suc = sucesoras(acts), orden = topo(acts);
+    const IC = {}, TC = {}, IL = {}, TL = {}, H = {};
+    for (const a of orden) {
+      IC[a] = Math.max(0, ...pred[a].map(p => TC[p]));
+      TC[a] = IC[a] + dur[a];
+    }
+    const D = Math.max(...orden.map(a => TC[a]));
+    for (const a of [...orden].reverse()) {
+      TL[a] = suc[a].length ? Math.min(...suc[a].map(s => IL[s])) : D;
+      IL[a] = TL[a] - dur[a];
+    }
+    orden.forEach(a => (H[a] = IL[a] - IC[a]));
+    const criticas = orden.filter(a => Math.abs(H[a]) < EPS);
+    return { orden, IC, TC, IL, TL, H, D, criticas };
+  }
+
+  function rutas(acts) {
+    const suc = sucesoras(acts), res = [];
+    const dfs = (a, cam) => {
+      const c = [...cam, a];
+      if (!suc[a].length) res.push(c);
+      suc[a].forEach(s => dfs(s, c));
+    };
+    acts.filter(a => !a.pred.length).forEach(a => dfs(a.id, []));
+    return res;
+  }
+
+  // erfc de Numerical Recipes (error relativo < 1.2e-7)
+  function erfc(x) {
+    const z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+    const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
+      t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+    return x >= 0 ? r : 2 - r;
+  }
+  const normCdf = z => 0.5 * erfc(-z / Math.SQRT2);
+
+  function probabilidad(acts, plazo) {
+    const pr = pert(acts);
+    const te = Object.fromEntries(acts.map(a => [a.id, pr[a.id].te]));
+    const c = cpm(acts, te);
+    // Ruta crítica = ruta más larga; si hay empate, la de mayor varianza (práctica PERT).
+    let ruta = null, v = -1;
+    for (const r of rutas(acts)) {
+      const d = r.reduce((s, a) => s + te[a], 0), vr = r.reduce((s, a) => s + pr[a].var, 0);
+      if (Math.abs(d - c.D) < EPS && vr > v) { ruta = r; v = vr; }
+    }
+    const sigma = Math.sqrt(v);
+    const z = sigma > 0 ? (plazo - c.D) / sigma : (plazo >= c.D ? Infinity : -Infinity);
+    return { mu: c.D, var: v, sigma, z, p: normCdf(z), ruta, vars: ruta.map(a => pr[a].var) };
+  }
+
+  // ------------------------------------------------------------ Monte Carlo
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function normalEstandar(rnd) {
+    let u = 0;
+    while (u === 0) u = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd());
+  }
+
+  // Gamma(k, 1) por Marsaglia–Tsang
+  function gamma(k, rnd) {
+    if (k < 1) return gamma(k + 1, rnd) * Math.pow(rnd(), 1 / k);
+    const d = k - 1 / 3, c = 1 / Math.sqrt(9 * d);
+    for (;;) {
+      let x, v;
+      do { x = normalEstandar(rnd); v = 1 + c * x; } while (v <= 0);
+      v = v * v * v;
+      const u = rnd();
+      if (u < 1 - 0.0331 * x ** 4) return d * v;
+      if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+    }
+  }
+
+  function beta(a, b, rnd) {
+    const x = gamma(a, rnd), y = gamma(b, rnd);
+    return x / (x + y);
+  }
+
+  function montecarlo(acts, n, semilla) {
+    const rnd = mulberry32(semilla);
+    const orden = topo(acts);
+    const pred = Object.fromEntries(acts.map(a => [a.id, a.pred]));
+    const lista = rutas(acts);
+    const T = new Float64Array(n);
+    const ganaRuta = new Uint32Array(lista.length);
+    const params = acts.map(a => {
+      if (a.p === a.o) return { id: a.id, fijo: a.o };
+      return { id: a.id, o: a.o, r: a.p - a.o, al: 1 + 4 * (a.m - a.o) / (a.p - a.o), be: 1 + 4 * (a.p - a.m) / (a.p - a.o) };
+    });
+    const d = {}, TC = {};
+    for (let k = 0; k < n; k++) {
+      for (const q of params) d[q.id] = q.fijo !== undefined ? q.fijo : q.o + q.r * beta(q.al, q.be, rnd);
+      let fin = 0;
+      for (const a of orden) {
+        let ic = 0;
+        for (const p of pred[a]) if (TC[p] > ic) ic = TC[p];
+        TC[a] = ic + d[a];
+        if (TC[a] > fin) fin = TC[a];
+      }
+      T[k] = fin;
+      let mejor = -1, imax = 0;
+      lista.forEach((r, i) => {
+        let s = 0;
+        for (const a of r) s += d[a];
+        if (s > mejor) { mejor = s; imax = i; }
+      });
+      ganaRuta[imax]++;
+    }
+    let suma = 0;
+    for (const t of T) suma += t;
+    const media = suma / n;
+    let sc = 0;
+    for (const t of T) sc += (t - media) ** 2;
+    const idxRuta = lista.map((r, i) => ({ ruta: r.join("-"), p: ganaRuta[i] / n }));
+    const idxAct = {};
+    acts.forEach(a => (idxAct[a.id] = lista.reduce((s, r, i) => s + (r.includes(a.id) ? ganaRuta[i] : 0), 0) / n));
+    const prob = plazo => { let c = 0; for (const t of T) if (t <= plazo) c++; return c / n; };
+    return { T, n, media, desv: Math.sqrt(sc / (n - 1)), prob, idxRuta, idxAct };
+  }
+
+  // ------------------------------------------------------------ Compresión
+  function datosCompresion(acts) {
+    const pr = pert(acts);
+    return acts.filter(a => a.compresion).map(a => {
+      const tn = Math.round(pr[a.id].te), red = tn - a.compresion.tc;
+      return { id: a.id, tn, tc: a.compresion.tc, cn: a.costo_normal, cc: a.compresion.cc, red,
+               cm: (a.compresion.cc - a.costo_normal) / red };
+    });
+  }
+
+  // Enumeración exhaustiva de reducciones enteras: costo mínimo por duración alcanzable.
+  function enumerarCompresion(acts) {
+    const comp = datosCompresion(acts), lista = rutas(acts), pr = pert(acts);
+    const base = lista.map(r => r.reduce((s, a) => s + Math.round(pr[a].te), 0));
+    const pertenece = lista.map(r => comp.map(c => (r.includes(c.id) ? 1 : 0)));
+    const mejor = {};
+    const x = new Array(comp.length).fill(0);
+    let total = 0;
+    const rec = i => {
+      if (i === comp.length) {
+        total++;
+        let d = 0, costo = 0;
+        for (let j = 0; j < comp.length; j++) costo += comp[j].cm * x[j];
+        for (let r = 0; r < lista.length; r++) {
+          let dr = base[r];
+          for (let j = 0; j < comp.length; j++) dr -= pertenece[r][j] * x[j];
+          if (dr > d) d = dr;
+        }
+        if (!(d in mejor) || costo < mejor[d].costo - 1e-9) mejor[d] = { costo, x: [...x] };
+        return;
+      }
+      for (let v = 0; v <= comp[i].red; v++) { x[i] = v; rec(i + 1); }
+    };
+    rec(0);
+    // Costo mínimo para terminar en a lo sumo d días (monótono)
+    const dur = Object.keys(mejor).map(Number).sort((a, b) => b - a);
+    const alMenos = {};
+    let acum = null;
+    for (const d of [...dur].reverse()) {
+      if (!acum || mejor[d].costo < acum.costo) acum = { ...mejor[d], d };
+      alMenos[d] = acum;
+    }
+    return { comp, mejor: alMenos, total, dmin: Math.min(...dur), dmax: Math.max(...dur),
+             costoNormal: acts.reduce((s, a) => s + a.costo_normal, 0) };
+  }
+
+  // Análisis marginal día por día: en cada paso, todas las opciones mínimas (1 día por actividad)
+  // que bajan 1 día el proyecto, y la más barata.
+  function analisisMarginal(acts, objetivo) {
+    const comp = datosCompresion(acts), lista = rutas(acts), pr = pert(acts);
+    const dur = Object.fromEntries(acts.map(a => [a.id, Math.round(pr[a.id].te)]));
+    const usado = Object.fromEntries(comp.map(c => [c.id, 0]));
+    const pasos = [];
+    let actual = cpm(acts, dur).D, acumulado = 0;
+    while (actual > objetivo) {
+      const largo = r => r.reduce((s, a) => s + dur[a], 0);
+      const crit = lista.filter(r => largo(r) === actual);
+      const validas = [];
+      for (let mask = 1; mask < 1 << comp.length; mask++) {
+        const sub = comp.filter((c, j) => mask & (1 << j));
+        if (sub.some(c => usado[c.id] >= c.red)) continue;
+        if (!crit.every(r => sub.some(c => r.includes(c.id)))) continue;
+        const prueba = { ...dur };
+        sub.forEach(c => prueba[c.id]--);
+        if (cpm(acts, prueba).D !== actual - 1) continue;
+        validas.push({ ids: sub.map(c => c.id), costo: sub.reduce((s, c) => s + c.cm, 0) });
+      }
+      if (!validas.length) break;
+      const minimas = validas.filter(v => !validas.some(w => w !== v && w.ids.length < v.ids.length && w.ids.every(i => v.ids.includes(i))));
+      minimas.sort((a, b) => a.costo - b.costo || a.ids.length - b.ids.length);
+      const mejor = minimas[0];
+      mejor.ids.forEach(i => { dur[i]--; usado[i]++; });
+      acumulado += mejor.costo;
+      pasos.push({ de: actual, a: actual - 1, rutas: crit.map(r => r.join("-")), opciones: minimas,
+                   decision: mejor.ids, costo: mejor.costo, acumulado, dur: { ...dur } });
+      actual--;
+    }
+    return pasos;
+  }
+
+  // ------------------------------------------------------------ Flujo máximo
+  const clave = (i, j) => i + ">" + j;
+
+  function residualInicial(arcos) {
+    const r = {};
+    for (const a of arcos) {
+      r[clave(a.de, a.a)] = (r[clave(a.de, a.a)] || 0) + a.cap;
+      if (!(clave(a.a, a.de) in r)) r[clave(a.a, a.de)] = 0;
+    }
+    return r;
+  }
+
+  function vecinos(res, i) {
+    return Object.keys(res).filter(k => k.split(">")[0] === i && res[k] > 0).map(k => k.split(">")[1]);
+  }
+
+  function alcanzables(res, o) {
+    const v = new Set([o]), cola = [o];
+    while (cola.length) {
+      const i = cola.shift();
+      for (const j of vecinos(res, i)) if (!v.has(j)) { v.add(j); cola.push(j); }
+    }
+    return v;
+  }
+
+  function aumentar(res, camino) {
+    const arcos = camino.slice(0, -1).map((n, k) => [n, camino[k + 1]]);
+    const resid = arcos.map(([i, j]) => res[clave(i, j)] ?? 0);
+    const c = Math.min(...resid);
+    if (!(c > 0)) return null;
+    const nuevo = { ...res }, tabla = [];
+    for (const [i, j] of arcos) {
+      const d0 = nuevo[clave(i, j)], r0 = nuevo[clave(j, i)];
+      nuevo[clave(i, j)] = d0 - c;
+      nuevo[clave(j, i)] = r0 + c;
+      tabla.push({ i, j, d0, d1: d0 - c, r0, r1: r0 + c });
+    }
+    return { res: nuevo, c, resid, tabla, arcos };
+  }
+
+  function secuencia(red) {
+    let res = residualInicial(red.arcos), total = 0;
+    const its = [{ k: 0, res, total: 0 }];
+    red.secuencia_trayectorias.forEach((tr, k) => {
+      const cam = tr.split("");
+      const a = aumentar(res, cam);
+      if (!a) throw new Error("Trayectoria sin capacidad: " + tr);
+      res = a.res;
+      total += a.c;
+      its.push({ k: k + 1, tr: cam, res, total, c: a.c, resid: a.resid, tabla: a.tabla, arcos: a.arcos });
+    });
+    return its;
+  }
+
+  function edmondsKarp(arcos, o, t) {
+    let res = residualInicial(arcos), F = 0;
+    for (;;) {
+      const padre = { [o]: null }, cola = [o];
+      while (cola.length && !(t in padre)) {
+        const i = cola.shift();
+        for (const j of vecinos(res, i)) if (!(j in padre)) { padre[j] = i; cola.push(j); }
+      }
+      if (!(t in padre)) break;
+      const cam = [t];
+      while (padre[cam[0]] !== null) cam.unshift(padre[cam[0]]);
+      const a = aumentar(res, cam);
+      res = a.res;
+      F += a.c;
+    }
+    return resumenFlujo(arcos, res, o, F);
+  }
+
+  function resumenFlujo(arcos, res, o, F) {
+    const alc = alcanzables(res, o);
+    const flujo = {};
+    arcos.forEach(a => (flujo[clave(a.de, a.a)] = a.cap - res[clave(a.de, a.a)]));
+    const corte = arcos.filter(a => alc.has(a.de) && !alc.has(a.a));
+    return { F, res, alc, flujo, corte, capCorte: corte.reduce((s, a) => s + a.cap, 0) };
+  }
+
+  return { pert, cpm, rutas, topo, sucesoras, normCdf, probabilidad, mulberry32, gamma, beta, montecarlo,
+           datosCompresion, enumerarCompresion, analisisMarginal, clave, residualInicial, aumentar, alcanzables, secuencia,
+           edmondsKarp, resumenFlujo };
+})();
+
+
+/* Interfaz del simulador en "modo clase". Usa IO (logica.js) y DATOS (inyectado por build_simulador.py). */
+(() => {
+  const CASO = DATOS.caso, LAY = DATOS.layout, REF = DATOS.referencia.montecarlo;
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const NS = "http://www.w3.org/2000/svg";
+  const copia = o => JSON.parse(JSON.stringify(o));
+  const r2 = x => Math.round(x * 100) / 100;
+  const fmt = x => (Number.isFinite(x) ? r2(x).toLocaleString("en-US", { maximumFractionDigits: 2 }) : "∞");
+  const f4 = x => (Number.isFinite(x) ? x.toFixed(4) : (x > 0 ? "+∞" : "−∞"));
+  const pct = p => (Math.round(p * 1000 + 1e-9) / 10).toFixed(1) + " %";
+  const q = x => "Q" + Math.round(x).toLocaleString("en-US");
+  const lista = s => "{" + s.join(", ") + "}";
+  const flecha = cam => cam.join("→");
+
+  // ------------------------------------------------------------ SVG
+  function svgEl(tag, attrs = {}, padre = null, texto = null) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (texto !== null) e.textContent = texto;
+    if (padre) padre.appendChild(e);
+    return e;
+  }
+  let nSvg = 0;
+  function nuevoSVG(cont, vb, angosto = false) {
+    cont.innerHTML = "";
+    cont.classList.toggle("angosto", angosto);
+    const svg = svgEl("svg", { viewBox: vb, preserveAspectRatio: "xMidYMid meet", id: "s" + ++nSvg }, cont);
+    marcadores(svg);
+    return svg;
+  }
+  function prepararSVG(svg, vb) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", vb);
+    if (!svg.id) svg.id = "s" + ++nSvg;
+    marcadores(svg);
+    return svg;
+  }
+  function marcadores(svg) {
+    const defs = svgEl("defs", {}, svg);
+    for (const [id, v] of [["n", "--muted"], ["c", "--critico"], ["f", "--flujo"], ["s", "--saturado"]]) {
+      const m = svgEl("marker", { id: `m${id}${svg.id}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+      svgEl("path", { d: "M0,0 L10,5 L0,10 z", style: `fill:var(${v})` }, m);
+    }
+  }
+  const mk = (svg, id) => `url(#m${id}${svg.id})`;
+  const T = (svg, x, y, s, a = {}) => svgEl("text", { x, y, "text-anchor": "middle", ...a }, svg, s);
+
+  // ------------------------------------------------------------ Tema, pestañas, pantalla completa
+  const raiz = document.documentElement;
+  try { const t = localStorage.getItem("tema"); if (t) raiz.dataset.theme = t; } catch (e) { /* sin almacenamiento */ }
+  $("#tema").addEventListener("click", () => {
+    const actual = raiz.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    raiz.dataset.theme = actual === "dark" ? "light" : "dark";
+    try { localStorage.setItem("tema", raiz.dataset.theme); } catch (e) { /* sin almacenamiento */ }
+  });
+  $("#pantalla").addEventListener("click", () => {
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
+  });
+  let pestana = "t-cpm";
+  $$("nav button").forEach(b => b.addEventListener("click", () => {
+    $$("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+    $$("main > section").forEach(s => (s.hidden = s.id !== b.dataset.tab));
+    pestana = b.dataset.tab;
+  }));
+
+  // ------------------------------------------------------------ Motor de pasos (presentador)
+  const ETAPAS = ["1 · La pregunta", "2 · La intuición", "3 · El método", "4 · El caso", "5 · Qué significa"];
+  const PRES = {}, MODO = {};
+  function presentador(secId, generar) {
+    const sec = $("#" + secId), diag = $(".diag", sec), panel = $(".panel", sec), prog = $(".progreso", sec);
+    const st = { k: 0, pasos: [] };
+    function dibujar() {
+      const p = st.pasos[st.k];
+      $(".num", sec).textContent = `Paso ${st.k + 1} / ${st.pasos.length}`;
+      $(".ant", sec).disabled = st.k === 0;
+      $(".sig", sec).disabled = st.k === st.pasos.length - 1;
+      p.dibujar(diag);
+      panel.innerHTML =
+        `<span class="etapa">${ETAPAS[p.etapa - 1]}</span><h3>${p.titulo}</h3>` +
+        (p.html || "") + (p.calc ? `<div class="calc">${p.calc}</div>` : "") + (p.html2 || "") +
+        (p.decir ? `<div class="decir">🗣 ${p.decir}</div>` : "") +
+        (p.pregunta ? `<div class="pregunta">❓ ${p.pregunta}</div>` : "");
+      panel.scrollTop = 0;
+      prog.innerHTML = "";
+      st.pasos.forEach((x, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.title = `${i + 1}. ${x.titulo.replace(/<[^>]+>/g, "")}`;
+        b.className = (i < st.k ? "hecho" : "") + (i === st.k ? " actual" : "") + (x.pregunta ? " preg" : "");
+        b.addEventListener("click", () => { st.k = i; dibujar(); });
+        prog.appendChild(b);
+      });
+    }
+    function regenerar(mantener = true) {
+      const titulo = st.pasos[st.k]?.titulo;
+      st.pasos = generar();
+      const i = mantener ? st.pasos.findIndex(p => p.titulo === titulo) : -1;
+      st.k = i >= 0 ? i : Math.min(st.k, st.pasos.length - 1);
+      dibujar();
+    }
+    $(".ant", sec).addEventListener("click", () => { if (st.k > 0) { st.k--; dibujar(); } });
+    $(".sig", sec).addEventListener("click", () => { if (st.k < st.pasos.length - 1) { st.k++; dibujar(); } });
+    const det = $(".detalle", sec);
+    if (det) det.addEventListener("change", () => regenerar());
+    PRES[secId] = { st, dibujar, regenerar, mover: d => { const k = st.k + d; if (k >= 0 && k < st.pasos.length) { st.k = k; dibujar(); } } };
+    regenerar(false);
+    return PRES[secId];
+  }
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input, textarea, select")) return;
+    if (MODO[pestana] !== "clase") return;
+    const sig = ["ArrowRight", "PageDown", " "].includes(e.key), ant = ["ArrowLeft", "PageUp"].includes(e.key);
+    if (sig || ant) { e.preventDefault(); PRES[pestana].mover(sig ? 1 : -1); }
+  });
+  function modos(secId, alCambiar) {
+    const sec = $("#" + secId);
+    MODO[secId] = "clase";
+    $$(".modos button", sec).forEach(b => b.addEventListener("click", () => {
+      $$(".modos button", sec).forEach(x => x.setAttribute("aria-pressed", x === b));
+      MODO[secId] = b.dataset.m;
+      $$(".solo-clase", sec).forEach(e => (e.hidden = b.dataset.m !== "clase"));
+      $$(".solo-construir", sec).forEach(e => (e.hidden = b.dataset.m !== "construir"));
+      const ex = $(".explorar", sec);
+      if (ex) ex.hidden = b.dataset.m === "clase";
+      alCambiar?.(b.dataset.m);
+    }));
+  }
+
+  // ============================================================ Dibujos compartidos
+  const ACTS_CASO = CASO.actividades;
+  const PR0 = IO.pert(ACTS_CASO), TE0 = Object.fromEntries(ACTS_CASO.map(a => [a.id, PR0[a.id].te])), CPM0 = IO.cpm(ACTS_CASO, TE0);
+
+  // Red AON. o: {acts, c, te, adelante, atras, nuevos, holguras, critica, grande}
+  function dibujarAON(svg, o) {
+    const g = o.grande, S = 80, BW = (g ? 1.45 : 1.12) * S, BH = (g ? 1.36 : 1.12) * S, P = LAY.aon;
+    const xmin = g ? -0.45 : -0.6, xmax = 9 * 1.75 + (g ? 0.45 : 0.6), ymax = g ? 3.15 : 3.25;
+    prepararSVG(svg, `0 0 ${(xmax - xmin) * S} ${2 * ymax * S}`);
+    const X = n => (P[n][0] - xmin) * S, Y = n => (ymax - P[n][1]) * S;
+    const acts = o.acts, c = o.c, suc = IO.sucesoras(acts);
+    const arcos = [...acts.filter(a => !a.pred.length).map(a => ["INICIO", a.id]),
+      ...acts.flatMap(a => a.pred.map(p => [p, a.id])), ...acts.filter(a => !suc[a.id].length).map(a => [a.id, "FIN"])];
+    const crit = n => n === "INICIO" || n === "FIN" || c.criticas.includes(n);
+    const R = 0.42 * S;
+    const borde = (n, lado) => { const r = n === "INICIO" || n === "FIN" ? R : BW / 2; return [X(n) + (lado === "der" ? r : -r), Y(n)]; };
+    for (const [i, j] of arcos) {
+      const cc = o.critica && crit(i) && crit(j) && (i === "INICIO" || j === "FIN" || Math.abs(c.TC[i] - c.IC[j]) < 1e-9);
+      const [x1, y1] = borde(i, "der"), [x2, y2] = borde(j, "izq");
+      svgEl("line", { x1, y1, x2: x2 - 2, y2, style: `stroke:var(${cc ? "--critico" : "--muted"})`, "stroke-width": cc ? 4 : 1.8, "marker-end": mk(svg, cc ? "c" : "n") }, svg);
+    }
+    for (const n of ["INICIO", "FIN"]) {
+      svgEl("circle", { cx: X(n), cy: Y(n), r: R, style: "fill:var(--suave);stroke:var(--primario)", "stroke-width": 2 }, svg);
+      T(svg, X(n), Y(n) + 5, n === "INICIO" ? "INICIO" : "FIN", { "font-size": g ? 15 : 12, "font-weight": 700 });
+    }
+    const fN = g ? 31 : 18, fV = g ? 25 : 14;
+    for (const a of acts) {
+      const n = a.id, cr = o.critica && c.criticas.includes(n), x0 = X(n) - BW / 2, y0 = Y(n) - BH / 2, h3 = BH / 3.3;
+      const col = cr ? "--critico" : "--primario";
+      const fondo = o.nuevos && o.nuevos.has(n) ? "--nuevo" : "--surface";
+      svgEl("rect", { x: x0, y: y0, width: BW, height: BH, rx: 3, style: `fill:var(${fondo});stroke:var(${col})`, "stroke-width": cr ? 4 : 2 }, svg);
+      for (const [a1, b1, a2, b2] of [[x0, y0 + h3, x0 + BW, y0 + h3], [x0, y0 + BH - h3, x0 + BW, y0 + BH - h3], [X(n), y0, X(n), y0 + h3], [X(n), y0 + BH - h3, X(n), y0 + BH]]) {
+        svgEl("line", { x1: a1, y1: b1, x2: a2, y2: b2, style: `stroke:var(${col})`, "stroke-width": 1.2 }, svg);
+      }
+      T(svg, X(n), Y(n) + fN * 0.35, `${n} (${fmt(o.te[n])})`, { "font-size": fN, "font-weight": 700, style: `fill:var(${col})` });
+      const v = (x, y, s) => T(svg, x, y, s, { "font-size": fV, "font-weight": 600 });
+      if (o.adelante && o.adelante.has(n)) { v(X(n) - BW / 4, y0 + h3 / 2 + fV * 0.35, fmt(c.IC[n])); v(X(n) + BW / 4, y0 + h3 / 2 + fV * 0.35, fmt(c.TC[n])); }
+      if (o.atras && o.atras.has(n)) { v(X(n) - BW / 4, y0 + BH - h3 / 2 + fV * 0.35, fmt(c.IL[n])); v(X(n) + BW / 4, y0 + BH - h3 / 2 + fV * 0.35, fmt(c.TL[n])); }
+      if (o.holguras) T(svg, X(n), y0 + BH + (g ? 24 : 16), `Holgura ${fmt(c.H[n])}`, { "font-size": g ? 21 : 13, "font-weight": 700, style: `fill:var(${c.H[n] < 1e-9 ? "--critico" : "--ok"})` });
+    }
+    const lx = 7 * 1.75 * S - xmin * S, ly = (ymax + 2.15) * S, w = 1.3 * S, h = 1.1 * S, hh = h / 3.3;
+    svgEl("rect", { x: lx - w / 2, y: ly - h / 2, width: w, height: h, style: "fill:none;stroke:var(--muted)", "stroke-width": 1.2 }, svg);
+    for (const [a1, b1, a2, b2] of [[lx - w / 2, ly - h / 2 + hh, lx + w / 2, ly - h / 2 + hh], [lx - w / 2, ly + h / 2 - hh, lx + w / 2, ly + h / 2 - hh], [lx, ly - h / 2, lx, ly - h / 2 + hh], [lx, ly + h / 2 - hh, lx, ly + h / 2]]) {
+      svgEl("line", { x1: a1, y1: b1, x2: a2, y2: b2, style: "stroke:var(--muted)" }, svg);
+    }
+    const sm = { "font-size": 14, "font-weight": 700, style: "fill:var(--muted)" };
+    T(svg, lx - w / 4, ly - h / 2 + hh - 7, "IC", sm); T(svg, lx + w / 4, ly - h / 2 + hh - 7, "TC", sm);
+    T(svg, lx, ly + 5, "Act. (t)", sm);
+    T(svg, lx - w / 4, ly + h / 2 - 7, "IL", sm); T(svg, lx + w / 4, ly + h / 2 - 7, "TL", sm);
+  }
+
+  function dibujarGantt(svg, c, te, acts, plazo) {
+    const izq = 260, ancho = 980, alto = 34 * c.orden.length + 50, xmax = Math.max(c.D, plazo) + 2;
+    prepararSVG(svg, `0 0 ${ancho} ${alto}`);
+    const X = d => izq + (d / xmax) * (ancho - izq - 20);
+    for (let d = 0; d <= xmax; d += 5) {
+      svgEl("line", { x1: X(d), y1: 10, x2: X(d), y2: alto - 30, style: "stroke:var(--border)" }, svg);
+      T(svg, X(d), alto - 10, d, { "font-size": 14, style: "fill:var(--muted)" });
+    }
+    const nom = Object.fromEntries(acts.map(a => [a.id, a.nombre]));
+    c.orden.forEach((a, k) => {
+      const y = 14 + k * 34, cr = c.criticas.includes(a), n = nom[a].length > 30 ? nom[a].slice(0, 29) + "…" : nom[a];
+      svgEl("text", { x: 6, y: y + 18, "font-size": 15 }, svg, `${a} — ${n}`);
+      svgEl("rect", { x: X(c.IC[a]), y, width: Math.max(1, X(c.TC[a]) - X(c.IC[a])), height: 24, rx: 3, style: `fill:var(${cr ? "--critico" : "--primario"})` }, svg);
+      T(svg, (X(c.IC[a]) + X(c.TC[a])) / 2, y + 17, fmt(te[a]), { "font-size": 14, "font-weight": 700, style: "fill:var(--surface)" });
+      if (c.H[a] > 1e-9) {
+        svgEl("rect", { x: X(c.TC[a]), y, width: X(c.TC[a] + c.H[a]) - X(c.TC[a]), height: 24, rx: 3, style: "fill:var(--ok);opacity:.3" }, svg);
+        svgEl("text", { x: X(c.TC[a] + c.H[a]) + 5, y: y + 17, "font-size": 14, style: "fill:var(--ok)" }, svg, `holgura ${fmt(c.H[a])}`);
+      }
+    });
+    svgEl("line", { x1: X(c.D), y1: 6, x2: X(c.D), y2: alto - 30, style: "stroke:var(--critico)", "stroke-dasharray": "6 4", "stroke-width": 2 }, svg);
+    svgEl("line", { x1: X(plazo), y1: 6, x2: X(plazo), y2: alto - 30, style: "stroke:var(--primario)", "stroke-dasharray": "2 3", "stroke-width": 2 }, svg);
+    svgEl("text", { x: X(c.D) - 4, y: alto - 34, "text-anchor": "end", "font-size": 14, style: "fill:var(--critico)" }, svg, `fin: día ${fmt(c.D)}`);
+    svgEl("text", { x: X(plazo) + 4, y: alto - 34, "font-size": 14, style: "fill:var(--primario)" }, svg, `congreso: día ${plazo}`);
+  }
+
+  function dibujarNormal(svg, mu, s, plazo, prob, sombrear = true) {
+    const W = 600, H = 240;
+    prepararSVG(svg, `0 0 ${W} ${H}`);
+    if (!(s > 0)) return;
+    const x0 = mu - 4 * s, x1 = mu + 4 * s, ymax = 1 / (s * Math.sqrt(2 * Math.PI));
+    const X = x => 20 + ((x - x0) / (x1 - x0)) * (W - 40), Y = y => H - 34 - (y / ymax) * (H - 70);
+    const pdf = x => Math.exp(-0.5 * ((x - mu) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+    const pts = [], area = [`M${X(x0)},${Y(0)}`];
+    for (let k = 0; k <= 200; k++) {
+      const x = x0 + (k / 200) * (x1 - x0);
+      pts.push(`${X(x)},${Y(pdf(x))}`);
+      if (x <= plazo) area.push(`L${X(x)},${Y(pdf(x))}`);
+    }
+    const xc = Math.min(Math.max(plazo, x0), x1);
+    area.push(`L${X(xc)},${Y(pdf(xc))}`, `L${X(xc)},${Y(0)} Z`);
+    if (sombrear) svgEl("path", { d: area.join(" "), style: "fill:var(--flujo);opacity:.35" }, svg);
+    svgEl("polyline", { points: pts.join(" "), style: "fill:none;stroke:var(--primario)", "stroke-width": 3 }, svg);
+    svgEl("line", { x1: 20, y1: Y(0), x2: W - 20, y2: Y(0), style: "stroke:var(--muted)" }, svg);
+    svgEl("line", { x1: X(mu), y1: Y(ymax), x2: X(mu), y2: Y(0), style: "stroke:var(--muted)", "stroke-dasharray": "4 4" }, svg);
+    T(svg, X(mu), H - 12, `μ = ${fmt(mu)}`, { "font-size": 15, style: "fill:var(--muted)" });
+    if (sombrear && plazo >= x0 && plazo <= x1) {
+      svgEl("line", { x1: X(plazo), y1: 26, x2: X(plazo), y2: Y(0), style: "stroke:var(--critico)", "stroke-width": 3 }, svg);
+      T(svg, X(plazo) + 18, H - 12, `${plazo}`, { "font-size": 15, "font-weight": 700, style: "fill:var(--critico)" });
+      T(svg, Math.min(Math.max(X(plazo), 110), W - 110), 20, `P(T ≤ ${plazo}) = ${pct(prob)}`, { "font-size": 19, "font-weight": 700, style: "fill:var(--critico)" });
+    }
+  }
+
+  function dibujarHist(svg, h, mu, s, plazo, etiqueta) {
+    const W = 600, H = 260;
+    prepararSVG(svg, `0 0 ${W} ${H}`);
+    const x1 = h.b0 + h.dens.length * h.ancho;
+    const pdf = x => Math.exp(-0.5 * ((x - mu) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+    const ymax = Math.max(...h.dens, pdf(mu)) * 1.12;
+    const X = x => 30 + ((x - h.b0) / (x1 - h.b0)) * (W - 50), Y = y => H - 30 - (y / ymax) * (H - 56);
+    h.dens.forEach((d, k) => svgEl("rect", { x: X(h.b0 + k * h.ancho) + 0.5, y: Y(d), width: Math.max(0, X(h.b0 + (k + 1) * h.ancho) - X(h.b0 + k * h.ancho) - 1), height: Y(0) - Y(d), style: "fill:var(--flujo);opacity:.6" }, svg));
+    const pts = [];
+    for (let k = 0; k <= 200; k++) { const x = h.b0 + (k / 200) * (x1 - h.b0); pts.push(`${X(x)},${Y(pdf(x))}`); }
+    svgEl("polyline", { points: pts.join(" "), style: "fill:none;stroke:var(--primario)", "stroke-width": 2.5 }, svg);
+    svgEl("line", { x1: 30, y1: Y(0), x2: W - 20, y2: Y(0), style: "stroke:var(--muted)" }, svg);
+    for (let d = Math.ceil(h.b0 / 5) * 5; d <= x1; d += 5) T(svg, X(d), H - 10, d, { "font-size": 14, style: "fill:var(--muted)" });
+    if (plazo >= h.b0 && plazo <= x1) {
+      svgEl("line", { x1: X(plazo), y1: 14, x2: X(plazo), y2: Y(0), style: "stroke:var(--critico)", "stroke-width": 2.5 }, svg);
+      svgEl("text", { x: X(plazo) + 6, y: 30, "font-size": 16, "font-weight": 700, style: "fill:var(--critico)" }, svg, etiqueta);
+    }
+    svgEl("text", { x: 34, y: 22, "font-size": 14, style: "fill:var(--flujo)" }, svg, "■ Monte Carlo");
+    svgEl("text", { x: 34, y: 42, "font-size": 14, style: "fill:var(--primario)" }, svg, "— Normal PERT");
+  }
+
+  function dibujarBeta(svg, a) {
+    const W = 600, H = 250, o = a.o, m = a.m, p = a.p, al = 1 + 4 * (m - o) / (p - o), be = 1 + 4 * (p - m) / (p - o);
+    prepararSVG(svg, `0 0 ${W} ${H}`);
+    const f = x => Math.pow(x, al - 1) * Math.pow(1 - x, be - 1);
+    let mx = 0; const ys = [];
+    for (let k = 0; k <= 200; k++) { const v = f(k / 200); ys.push(v); if (v > mx) mx = v; }
+    const X = d => 40 + ((d - o) / (p - o)) * (W - 80), Y = v => H - 50 - (v / mx) * (H - 100);
+    const pts = ys.map((v, k) => `${X(o + (k / 200) * (p - o))},${Y(v)}`);
+    svgEl("path", { d: `M${X(o)},${Y(0)} L${pts.join(" L")} L${X(p)},${Y(0)} Z`, style: "fill:var(--flujo);opacity:.25" }, svg);
+    svgEl("polyline", { points: pts.join(" "), style: "fill:none;stroke:var(--primario)", "stroke-width": 3 }, svg);
+    svgEl("line", { x1: 30, y1: Y(0), x2: W - 30, y2: Y(0), style: "stroke:var(--muted)" }, svg);
+    const te = (o + 4 * m + p) / 6;
+    for (const [d, s, col] of [[o, `o = ${o}`, "--ok"], [m, `m = ${m}`, "--primario"], [p, `p = ${p}`, "--critico"], [te, `t_e = ${fmt(te)}`, "--saturado"]]) {
+      svgEl("line", { x1: X(d), y1: 40, x2: X(d), y2: Y(0), style: `stroke:var(${col})`, "stroke-dasharray": "5 4", "stroke-width": 2 }, svg);
+      T(svg, X(d), d === te ? 30 : H - 24, s, { "font-size": 18, "font-weight": 700, style: `fill:var(${col})` });
+    }
+    T(svg, W / 2, H - 4, `Duración de ${a.id} (días) — distribución beta`, { "font-size": 14, style: "fill:var(--muted)" });
+  }
+
+  function dibujarRutas(svg, dur, resaltar = [], objetivo = null) {
+    const rs = IO.rutas(ACTS_CASO).map(r => ({ r, d: r.reduce((s, a) => s + dur[a], 0) })).sort((a, b) => b.d - a.d);
+    const W = 900, fila = 54, H = rs.length * fila + 60, izq = 120, D = rs[0].d, xmax = 42;
+    prepararSVG(svg, `0 0 ${W} ${H}`);
+    const X = d => izq + (d / xmax) * (W - izq - 70);
+    rs.forEach((o, k) => {
+      const y = 20 + k * fila, crit = o.d === D;
+      svgEl("text", { x: izq - 10, y: y + 26, "text-anchor": "end", "font-size": 16, "font-weight": crit ? 700 : 400, style: `fill:var(${crit ? "--critico" : "--muted"})` }, svg, o.r.filter(a => !"ABCM".includes(a)).join("-"));
+      let x = 0;
+      for (const a of o.r) {
+        const res = resaltar.includes(a);
+        svgEl("rect", { x: X(x), y, width: X(x + dur[a]) - X(x) - 1.5, height: 36, rx: 3, style: `fill:var(${res ? "--saturado" : crit ? "--critico" : "--primario"});opacity:${crit || res ? 1 : 0.55}` }, svg);
+        if (X(x + dur[a]) - X(x) > 16) T(svg, (X(x) + X(x + dur[a])) / 2, y + 24, a, { "font-size": 15, "font-weight": 700, style: "fill:var(--surface)" });
+        x += dur[a];
+      }
+      svgEl("text", { x: X(o.d) + 8, y: y + 25, "font-size": 18, "font-weight": 700, style: `fill:var(${crit ? "--critico" : "--muted"})` }, svg, o.d);
+    });
+    if (objetivo) {
+      svgEl("line", { x1: X(objetivo), y1: 8, x2: X(objetivo), y2: H - 34, style: "stroke:var(--ok)", "stroke-dasharray": "6 4", "stroke-width": 2.5 }, svg);
+      T(svg, X(objetivo), H - 12, `meta: ${objetivo} días`, { "font-size": 15, "font-weight": 700, style: "fill:var(--ok)" });
+    }
+    svgEl("text", { x: 8, y: H - 12, "font-size": 13, style: "fill:var(--muted)" }, svg, "Todas las rutas pasan por A, B, C y M");
+  }
+
+  function dibujarCosto(svg, curva, opt, dsel, dmin, dmax) {
+    const W = 600, H = 280;
+    prepararSVG(svg, `0 0 ${W} ${H}`);
+    const ys = curva.map(c => c.total);
+    const bruto = (Math.max(...ys) - Math.min(...ys)) / 4 || 1000, mag = 10 ** Math.floor(Math.log10(bruto));
+    const paso = [1, 2, 5, 10].map(m => m * mag).find(v => v >= bruto);
+    const ymin = Math.floor(Math.min(...ys) / paso) * paso - paso, ymax = Math.ceil(Math.max(...ys) / paso) * paso + paso;
+    const X = d => 80 + ((dmax - d) / (dmax - dmin)) * (W - 110), Y = y => H - 40 - ((y - ymin) / (ymax - ymin)) * (H - 66);
+    for (let v = ymin; v <= ymax + 1e-6; v += paso) {
+      svgEl("line", { x1: 80, y1: Y(v), x2: W - 20, y2: Y(v), style: "stroke:var(--border)" }, svg);
+      svgEl("text", { x: 74, y: Y(v) + 4, "text-anchor": "end", "font-size": 12, style: "fill:var(--muted)" }, svg, q(v));
+    }
+    curva.forEach(c => T(svg, X(c.d), H - 22, c.d, { "font-size": 13, style: "fill:var(--muted)" }));
+    T(svg, (W + 60) / 2, H - 4, "Duración del proyecto (días)", { "font-size": 13, style: "fill:var(--muted)" });
+    svgEl("polyline", { points: curva.map(c => `${X(c.d)},${Y(c.total)}`).join(" "), style: "fill:none;stroke:var(--primario)", "stroke-width": 3 }, svg);
+    curva.forEach(c => svgEl("circle", { cx: X(c.d), cy: Y(c.total), r: 4, style: "fill:var(--primario)" }, svg));
+    if (dsel) svgEl("line", { x1: X(dsel), y1: 20, x2: X(dsel), y2: H - 40, style: "stroke:var(--critico)", "stroke-dasharray": "5 4", "stroke-width": 2 }, svg);
+    svgEl("circle", { cx: X(opt.d), cy: Y(opt.total), r: 10, style: "fill:none;stroke:var(--ok)", "stroke-width": 3 }, svg);
+    T(svg, X(opt.d), Y(opt.total) + 32, `Óptimo: ${opt.d} días (${q(opt.total)})`, { "font-size": 15, "font-weight": 700, style: "fill:var(--ok)" });
+  }
+
+  // ------------------------------------------------------------ Redes de flujo
+  const K = IO.clave;
+  const RED_HOTEL = { ...CASO.red_flujo, ...LAY.flujo };
+  const RED_PRACT = { ...DATOS.didactico.red_practica, ...LAY.practica };
+  function bez(red, i, j, t) {
+    const [x1, y1] = red.pos[i], [x2, y2] = red.pos[j], f = (red.rad && red.rad[K(i, j)]) || 0;
+    const cx = (x1 + x2) / 2 + f * (y2 - y1), cy = (y1 + y2) / 2 - f * (x2 - x1);
+    return [(1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t * t * x2, (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t * t * y2];
+  }
+  // o: {modo: 'cap'|'residual'|'flujo', res, flujo, arcos, camino, cuello, alc, corte, total, sel, clic, foco}
+  function dibujarFlujo(svg, red, o) {
+    const SF = 110, xs = Object.values(red.pos).map(p => p[0]), ys = Object.values(red.pos).map(p => p[1]);
+    const XMIN = Math.min(...xs) - 0.75, XMAX = Math.max(...xs) + 0.75, YMAX = Math.max(...ys) + 0.4, YMIN = Math.min(...ys) - 0.4;
+    prepararSVG(svg, `0 0 ${(XMAX - XMIN) * SF} ${(YMAX - YMIN) * SF}`);
+    const px = ([x, y]) => [(x - XMIN) * SF, (YMAX - y) * SF];
+    const pt = n => px(red.pos[n]), NR = 0.25 * SF;
+    const ruta = (i, j, t0 = 0.1, t1 = 0.9) => { const p = []; for (let k = 0; k <= 24; k++) p.push(px(bez(red, i, j, t0 + (k / 24) * (t1 - t0))).join(",")); return "M" + p.join(" L"); };
+    const etiqueta = (x, y, s, color, tam = 19, marco = false) => {
+      const g = svgEl("g", {}, svg), w = String(s).length * tam * 0.56 + 10;
+      svgEl("rect", { x: x - w / 2, y: y - tam * 0.68, width: w, height: tam * 1.36, rx: 5, style: `fill:var(--surface);${marco ? `stroke:var(${color});stroke-width:2.5` : ""}` }, g);
+      svgEl("text", { x, y: y + tam * 0.36, "text-anchor": "middle", "font-size": tam, "font-weight": 700, style: `fill:var(${color})` }, g, s);
+    };
+    const arcos = o.arcos || red.arcos;
+    const enCamino = new Set((o.camino || []).map(([i, j]) => K(i, j)));
+    const corte = new Set((o.corte || []).map(a => K(a.de, a.a)));
+    for (const a of arcos) {
+      const i = a.de, j = a.a, ida = enCamino.has(K(i, j)), vuelta = enCamino.has(K(j, i));
+      const sat = o.modo === "flujo" && Math.abs(o.flujo[K(i, j)] - a.cap) < 1e-9 && a.cap > 0;
+      let color = "--muted", w = 2;
+      if (o.modo === "flujo") { const x = o.flujo[K(i, j)]; color = sat ? "--saturado" : (x > 0 ? "--flujo" : "--muted"); w = 2 + 0.45 * x; }
+      if (o.foco && (o.foco.has(K(i, j)) || o.foco.has(K(j, i)))) { color = "--primario"; w = 5; }
+      if (ida) { color = "--flujo"; w = 6; }
+      if (vuelta) { color = "--saturado"; w = 6; }
+      const conFlecha = o.modo !== "residual";
+      svgEl("path", { d: ruta(i, j), style: `fill:none;stroke:var(${color})`, "stroke-width": w, "marker-end": conFlecha ? mk(svg, color === "--saturado" ? "s" : color === "--flujo" ? "f" : "n") : "" }, svg);
+      if (corte.has(K(i, j))) svgEl("path", { d: ruta(i, j, 0.32, 0.68), style: "fill:none;stroke:var(--critico)", "stroke-width": 11, "stroke-dasharray": "3 5", opacity: 0.85 }, svg);
+      if (ida || vuelta) {
+        const [ax, ay] = px(bez(red, i, j, ida ? 0.42 : 0.58)), [bx, by] = px(bez(red, i, j, ida ? 0.58 : 0.42));
+        svgEl("path", { d: `M${ax},${ay} L${bx},${by}`, style: `fill:none;stroke:var(${ida ? "--flujo" : "--saturado"})`, "stroke-width": 6, "marker-end": mk(svg, ida ? "f" : "s") }, svg);
+      }
+      if (o.modo === "residual") {
+        const d = o.res[K(i, j)], r = o.res[K(j, i)];
+        const [x1, y1] = px(bez(red, i, j, 0.24)), [x2, y2] = px(bez(red, i, j, 0.76));
+        etiqueta(x1, y1, fmt(d), d === 0 ? "--critico" : "--primario", 21, o.cuello && o.cuello.has(K(i, j)));
+        etiqueta(x2, y2, fmt(r), vuelta ? "--saturado" : "--primario", 21, o.cuello && o.cuello.has(K(j, i)));
+      } else {
+        const [x, y] = px(bez(red, i, j, (red.t_med && red.t_med[K(i, j)]) || 0.5));
+        etiqueta(x, y, o.modo === "cap" ? fmt(a.cap) : `${fmt(o.flujo[K(i, j)])}/${fmt(a.cap)}`, o.modo === "cap" ? "--primario" : sat ? "--saturado" : "--flujo", 19);
+      }
+    }
+    for (const n in red.pos) {
+      const [x, y] = pt(n), res = (o.alc && o.alc.has(n)) || (o.sel && o.sel.includes(n));
+      const g = svgEl("g", o.clic ? { class: "nodo-clic", role: "button", tabindex: 0, "aria-label": "Nodo " + n } : {}, svg);
+      svgEl("circle", { cx: x, cy: y, r: NR, style: `fill:var(${res ? "--nuevo" : "--surface"});stroke:var(--primario)`, "stroke-width": 3 }, g);
+      T(g, x, y + 9, n, { "font-size": 26, "font-weight": 700, style: "fill:var(--primario)" });
+      if (o.clic) {
+        g.addEventListener("click", () => o.clic(n));
+        g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); o.clic(n); } });
+      }
+    }
+    if (o.total !== undefined) {
+      const [xo, yo] = pt(red.origen), [xt, yt] = pt(red.destino);
+      svgEl("text", { x: xo - NR - 8, y: yo + 12, "text-anchor": "end", "font-size": 34, "font-weight": 700, style: "fill:var(--flujo)" }, svg, fmt(o.total));
+      svgEl("text", { x: xt + NR + 8, y: yt + 12, "text-anchor": "start", "font-size": 34, "font-weight": 700, style: "fill:var(--flujo)" }, svg, fmt(o.total));
+    }
+  }
+  const svgFlujo = div => nuevoSVG(div, "0 0 10 10", true);
+  const nombresNodos = red => Object.entries(red.etiquetas).map(([n, e]) => `<b>${n}</b> = ${e}`).join(" · ");
+
+  // ============================================================ 1. CPM — clase
+  const PLAZO = CASO.meta.plazo_congreso_dias;
+  const PRED0 = Object.fromEntries(ACTS_CASO.map(a => [a.id, a.pred])), SUC0 = IO.sucesoras(ACTS_CASO);
+  const C = CPM0;
+  function niveles(dir) {
+    const lv = {};
+    if (dir === "adelante") C.orden.forEach(a => (lv[a] = Math.max(0, ...PRED0[a].map(p => lv[p] + 1))));
+    else [...C.orden].reverse().forEach(a => (lv[a] = Math.max(0, ...SUC0[a].map(s => lv[s] + 1))));
+    return lv;
+  }
+  const aon = o => div => dibujarAON(nuevoSVG(div, "0 0 10 10"), { acts: ACTS_CASO, c: C, te: TE0, grande: true, ...o });
+  const lineaAdelante = a => (PRED0[a].length > 1
+    ? `IC(${a}) = máx{${PRED0[a].map(p => `TC(${p})`).join(", ")}} = máx{${PRED0[a].map(p => fmt(C.TC[p])).join(", ")}} = ${fmt(C.IC[a])}`
+    : PRED0[a].length ? `IC(${a}) = TC(${PRED0[a][0]}) = ${fmt(C.IC[a])}` : `IC(${a}) = 0 (no tiene predecesoras)`) +
+    `\nTC(${a}) = ${fmt(C.IC[a])} + ${fmt(TE0[a])} = ${fmt(C.TC[a])}`;
+  const lineaAtras = a => (SUC0[a].length > 1
+    ? `TL(${a}) = mín{${SUC0[a].map(s => `IL(${s})`).join(", ")}} = mín{${SUC0[a].map(s => fmt(C.IL[s])).join(", ")}} = ${fmt(C.TL[a])}`
+    : SUC0[a].length ? `TL(${a}) = IL(${SUC0[a][0]}) = ${fmt(C.TL[a])}` : `TL(${a}) = ${fmt(C.D)} (fin del proyecto)`) +
+    `\nIL(${a}) = ${fmt(C.TL[a])} − ${fmt(TE0[a])} = ${fmt(C.IL[a])}`;
+
+  function pasosCPM() {
+    const det = $("#t-cpm .detalle").checked, P = [], todos = new Set(C.orden);
+    const rutas = IO.rutas(ACTS_CASO).map(r => ({ r, d: r.reduce((s, a) => s + TE0[a], 0) })).sort((a, b) => b.d - a.d);
+    P.push({ etapa: 1, titulo: `¿Llegamos en ${PLAZO} días?`, dibujar: aon({}),
+      html: `<p>El hotel debe tener la red WiFi lista antes del congreso: <b>${PLAZO} días hábiles</b>. El proyecto tiene <b>${ACTS_CASO.length} actividades</b>; cada caja muestra su duración esperada y cada flecha dice qué debe terminar antes.</p>`,
+      decir: "Por ejemplo, no podemos montar los access points (G) hasta que lleguen los equipos (D) y esté el cableado (E)." });
+    P.push({ etapa: 2, titulo: "Manda el camino más largo", dibujar: aon({}),
+      html: `<p>Lo que va <b>en serie</b> se suma; lo que va <b>en paralelo</b> se traslapa. El proyecto dura lo que dura su camino más largo:</p>` +
+        `<table><tr><th>Ruta</th><th>Días</th></tr>${rutas.map((x, i) => `<tr${i === 0 ? ' class="marcada"' : ""}><td>${x.r.join("-")}</td><td>${fmt(x.d)}</td></tr>`).join("")}</table>`,
+      decir: "Es como una cena: se sirve cuando termina el plato que más tarda. Con 6 caminos se suma a mano; con miles no. Para eso están los dos pases." });
+    P.push({ etapa: 3, titulo: "Las reglas de los dos pases", dibujar: aon({}),
+      html: `<p><b>Pase hacia adelante</b> (izquierda → derecha), lo antes posible:</p><div class="calc">IC = el MÁXIMO de los TC de sus predecesoras\nTC = IC + t</div>` +
+        `<p><b>Pase hacia atrás</b> (derecha → izquierda), lo más tarde posible sin atrasar el final:</p><div class="calc">TL = el MÍNIMO de los IL de sus sucesoras\nIL = TL − t</div>` +
+        `<p><b>Holgura</b> = IL − IC: días que puede atrasarse sin mover el final.</p>`,
+      decir: "Adelante usamos el máximo porque hay que esperar a la última que termine; atrás usamos el mínimo porque no podemos pasarnos de la que empieza primero." });
+    const pase = dir => {
+      const lv = niveles(dir), nmax = Math.max(...Object.values(lv)), hechos = new Set();
+      const grupos = det ? [...Array(nmax + 1).keys()].map(k => C.orden.filter(a => lv[a] === k)) : [C.orden.slice()];
+      grupos.forEach((g, idx) => {
+        g.forEach(a => hechos.add(a));
+        const ordenG = dir === "adelante" ? g : [...g].reverse();
+        const multi = ordenG.find(a => (dir === "adelante" ? PRED0[a] : SUC0[a]).length > 1);
+        let decir = dir === "adelante" ? "Cada actividad empieza cuando termina su predecesora." : "Cada actividad debe terminar antes de que empiece su sucesora.";
+        if (multi && dir === "adelante") decir = `${multi} necesita ${PRED0[multi].join(" y ")}: empieza cuando termina la ÚLTIMA, el día ${fmt(C.IC[multi])}.`;
+        if (multi && dir === "atras") decir = `${multi} alimenta a ${SUC0[multi].join(", ")}: debe terminar antes de que empiece la PRIMERA, el día ${fmt(C.TL[multi])}.`;
+        if (dir === "adelante" && idx === grupos.length - 1) decir = `M termina el día ${fmt(C.D)}: esa es la duración del proyecto.`;
+        if (dir === "atras" && idx === 0 && det) decir = `Empezamos por el final: M debe terminar el día ${fmt(C.D)}.`;
+        P.push({ etapa: 4, titulo: `Pase hacia ${dir === "adelante" ? "adelante" : "atrás"}${det ? ` · ${idx + 1} de ${grupos.length}` : ""}`,
+          dibujar: aon({ adelante: dir === "adelante" ? new Set(hechos) : todos, atras: dir === "adelante" ? null : new Set(hechos), nuevos: new Set(g) }),
+          calc: ordenG.map(dir === "adelante" ? lineaAdelante : lineaAtras).join("\n\n"), decir });
+      });
+    };
+    pase("adelante");
+    pase("atras");
+    P.push({ etapa: 4, titulo: "Holguras", dibujar: aon({ adelante: todos, atras: todos, holguras: true }),
+      calc: C.orden.map(a => `${a}: ${fmt(C.IL[a])} − ${fmt(C.IC[a])} = ${fmt(C.H[a])}`).join("\n"),
+      decir: "La holgura es el margen de cada actividad. El cableado (E) tiene 6 días; la importación (D) tiene 0." });
+    P.push({ etapa: 4, titulo: `Ruta crítica = ${fmt(C.D)} días`, dibujar: aon({ adelante: todos, atras: todos, holguras: true, critica: true }),
+      html: `<p>Actividades con holgura 0: <b>${C.criticas.join(", ")}</b>.</p><div class="calc">INICIO → ${C.criticas.join(" → ")} → FIN\n${C.criticas.map(a => fmt(TE0[a])).join(" + ")} = ${fmt(C.D)} días</div>`,
+      decir: `Estas ${C.criticas.length} actividades no pueden atrasarse ni un día: cualquier atraso en ellas atrasa el congreso.`,
+      pregunta: "Si el cableado (E) se atrasa 5 días, ¿se atrasa el congreso?" });
+    const teE = d => ({ ...TE0, E: TE0.E + d }), c5 = IO.cpm(ACTS_CASO, teE(5)), c7 = IO.cpm(ACTS_CASO, teE(7));
+    P.push({ etapa: 4, titulo: "Respuesta: no", dibujar: div => dibujarAON(nuevoSVG(div, "0 0 10 10"), { acts: ACTS_CASO, c: c5, te: teE(5), grande: true, adelante: todos, atras: todos, holguras: true, critica: true, nuevos: new Set(["E"]) }),
+      html: `<p>Con E = ${fmt(TE0.E)} + 5 = ${fmt(TE0.E + 5)} días el proyecto sigue en <b>${fmt(c5.D)}</b>: E tenía holgura ${fmt(C.H.E)}.</p><p>Con 7 días de atraso pasaría a <b>${fmt(c7.D)}</b>: el atraso que supera la holgura pasa al proyecto.</p>`,
+      decir: `La holgura se gasta: E ahora solo tiene ${fmt(c5.H.E)} día de margen.` });
+    P.push({ etapa: 4, titulo: "Diagrama de Gantt", dibujar: div => dibujarGantt(nuevoSVG(div, "0 0 10 10"), C, TE0, ACTS_CASO, PLAZO),
+      decir: `Barras rojas: críticas. Verde: el margen de cada actividad. El proyecto termina el día ${fmt(C.D)}; el congreso es el día ${PLAZO}.` });
+    P.push({ etapa: 5, titulo: "Repaso en 3 ideas", dibujar: aon({ adelante: todos, atras: todos, holguras: true, critica: true }),
+      html: `<ol class="ideas"><li>El proyecto dura lo que su <b>camino más largo</b>: ${fmt(C.D)} días.</li><li><b>Holgura</b> = margen = IL − IC.</li><li>Las actividades <b>críticas</b> (holgura 0) no pueden atrasarse: ${C.criticas.join(", ")}.</li></ol>` });
+    return P;
+  }
+
+  // ============================================================ 2. PERT — clase
+  const PROB0 = IO.probabilidad(ACTS_CASO, PLAZO);
+  function pasosPERT() {
+    const D = ACTS_CASO.find(a => a.id === "D"), P = [];
+    const tabla = div => {
+      div.classList.remove("angosto");
+      div.innerHTML = `<div class="tabla-diag"><table><tr><th>Act.</th><th>o</th><th>m</th><th>p</th><th>t_e = (o + 4m + p)/6</th><th>σ² = ((p − o)/6)²</th></tr>` +
+        ACTS_CASO.map(a => `<tr${C.criticas.includes(a.id) ? ' class="critica"' : ""}><td>${a.id}</td><td>${a.o}</td><td>${a.m}</td><td>${a.p}</td>` +
+          `<td>(${a.o} + ${4 * a.m} + ${a.p})/6 = <b>${fmt(PR0[a.id].te)}</b></td><td>(${a.p - a.o}/6)² = <b>${fmt(PR0[a.id].var)}</b></td></tr>`).join("") + `</table></div>`;
+    };
+    P.push({ etapa: 1, titulo: "¿Y si los tiempos no son seguros?", dibujar: div => dibujarBeta(nuevoSVG(div, "0 0 10 10", true), D),
+      html: `<p>La importación (D) depende de proveedores, transporte y aduana. Podría tardar <b>${D.o}</b> días (optimista), <b>${D.m}</b> (lo más probable) o <b>${D.p}</b> (pesimista).</p>`,
+      decir: "CPM usa un solo número por actividad. PERT reconoce la incertidumbre con tres estimaciones." });
+    P.push({ etapa: 3, titulo: "Media y varianza de una actividad", dibujar: div => dibujarBeta(nuevoSVG(div, "0 0 10 10", true), D),
+      calc: `t_e = (o + 4m + p)/6 = (${D.o} + 4·${D.m} + ${D.p})/6 = ${D.o + 4 * D.m + D.p}/6 = ${fmt(PR0.D.te)}\nσ² = ((p − o)/6)² = ((${D.p} − ${D.o})/6)² = (${D.p - D.o}/6)² = ${fmt(PR0.D.var)}`,
+      decir: "El valor más probable pesa 4 veces más. La varianza crece con la distancia entre optimista y pesimista: D es la actividad más incierta." });
+    P.push({ etapa: 4, titulo: `Las ${ACTS_CASO.length} actividades`, dibujar: tabla,
+      decir: "En rojo, las actividades de la ruta crítica. Estas t_e son las duraciones que usamos en CPM." });
+    P.push({ etapa: 3, titulo: "Varianza del proyecto", dibujar: div => dibujarNormal(nuevoSVG(div, "0 0 10 10", true), PROB0.mu, PROB0.sigma, PLAZO, PROB0.p, false),
+      calc: `μ = ${fmt(PROB0.mu)} días (suma de t_e de la ruta crítica)\nσ² = ${PROB0.vars.map(fmt).join(" + ")} = ${fmt(PROB0.var)}\nσ = √${fmt(PROB0.var)} = ${f4(PROB0.sigma)}`,
+      decir: "Las varianzas se suman porque suponemos actividades independientes. Y por el Teorema del Límite Central, la suma de varias actividades se comporta como una normal." });
+    P.push({ etapa: 4, titulo: `P(T ≤ ${PLAZO}) = ${pct(PROB0.p)}`, dibujar: div => dibujarNormal(nuevoSVG(div, "0 0 10 10", true), PROB0.mu, PROB0.sigma, PLAZO, PROB0.p),
+      calc: `z = (plazo − μ)/σ = (${PLAZO} − ${fmt(PROB0.mu)})/${f4(PROB0.sigma)} = ${f4(PROB0.z)}\nP(T ≤ ${PLAZO}) = Φ(${f4(PROB0.z)}) = ${f4(PROB0.p)} → ${pct(PROB0.p)}`,
+      decir: `Aproximadamente 4 de cada 5 veces terminaríamos antes del congreso. Para tener 95 % de seguridad haría falta un plazo de unos ${Math.ceil(PROB0.mu + 1.645 * PROB0.sigma)} días.` });
+    P.push({ etapa: 5, titulo: "Monte Carlo: lo que PERT no ve", dibujar: div => dibujarHist(nuevoSVG(div, "0 0 10 10", true), REF.hist, PROB0.mu, PROB0.sigma, PLAZO, `Monte Carlo ${REF.p_plazo} · PERT ${pct(PROB0.p)}`),
+      html: `<p>Simulamos <b>${REF.n.toLocaleString("en-US")}</b> proyectos sorteando la duración de cada actividad.</p>` +
+        `<div class="kpis"><div class="kpi"><b>${REF.p_plazo}</b><span>Monte Carlo</span></div><div class="kpi"><b>${pct(PROB0.p)}</b><span>PERT</span></div></div>` +
+        `<table><tr><th>Ruta más larga</th><th>% de corridas</th></tr>${REF.idx_ruta.slice(0, 3).map(r => `<tr><td>${r.ruta}</td><td>${r.p}</td></tr>`).join("")}</table>`,
+      decir: `PERT solo mira la ruta crítica promedio. Pero en casi 3 de cada 10 escenarios la ruta más larga es otra (sobre todo D-G-K). Por eso PERT es optimista: ${pct(PROB0.p)} contra ${REF.p_plazo}.` });
+    P.push({ etapa: 5, titulo: "Repaso en 3 ideas", dibujar: div => dibujarNormal(nuevoSVG(div, "0 0 10 10", true), PROB0.mu, PROB0.sigma, PLAZO, PROB0.p),
+      html: `<ol class="ideas"><li>Tres estimaciones → <b>t_e = (o + 4m + p)/6</b> y <b>σ² = ((p − o)/6)²</b>.</li><li>Ruta crítica → normal con μ = ${fmt(PROB0.mu)} y σ = ${fmt(PROB0.sigma)} → <b>${pct(PROB0.p)}</b>.</li><li>Monte Carlo (${REF.p_plazo}) muestra que PERT es <b>optimista</b>.</li></ol>`,
+      html2: `<table><tr><th></th><th>PERT</th><th>CPM</th></tr><tr><td>Tiempos</td><td>Probabilísticos (o, m, p)</td><td>Deterministas</td></tr><tr><td>Enfoque</td><td>Tiempo y riesgo</td><td>Tiempo y costo</td></tr><tr><td>Resultado</td><td>Probabilidad de cumplir</td><td>Ruta crítica y compresión</td></tr></table>` });
+    return P;
+  }
+
+  // ============================================================ 3. Compresión — clase
+  const EN = IO.enumerarCompresion(ACTS_CASO);
+  const OBJ = CASO.meta.objetivo_compresion_dias, IND = CASO.meta.costo_indirecto_por_dia;
+  const AM = IO.analisisMarginal(ACTS_CASO, OBJ);
+  function pasosComp() {
+    const P = [], dur0 = Object.fromEntries(ACTS_CASO.map(a => [a.id, Math.round(TE0[a.id])]));
+    const rutas = (dur, res, obj) => div => dibujarRutas(nuevoSVG(div, "0 0 10 10", true), dur, res, obj);
+    P.push({ etapa: 1, titulo: `¿Cuánto cuesta terminar en ${OBJ} días?`, dibujar: rutas(dur0, [], OBJ),
+      html: `<p>Gerencia quiere el go‑live en <b>${OBJ} días</b> (${fmt(C.D - OBJ)} antes) para tener una semana de marcha blanca antes del congreso.</p><p>Cada barra es una ruta y cada bloque, una actividad. La roja es la crítica: <b>${fmt(C.D)}</b> días.</p>`,
+      decir: "Se puede acortar una actividad pagando más: horas extra, envío urgente. ¿Qué acortamos y cuánto cuesta?" });
+    P.push({ etapa: 3, titulo: "Costo marginal", dibujar: rutas(dur0, [], OBJ),
+      html: `<table><tr><th>Act.</th><th>(CC − CN)/(tn − tc)</th><th>Q/día</th><th>Máx.</th></tr>${EN.comp.map(c => `<tr><td>${c.id}</td><td>(${c.cc.toLocaleString("en-US")} − ${c.cn.toLocaleString("en-US")})/(${c.tn} − ${c.tc})</td><td><b>${q(c.cm)}</b></td><td>${c.red}</td></tr>`).join("")}</table>`,
+      html2: `<p><b>Regla:</b> para bajar 1 día el proyecto hay que bajar 1 día <b>todas</b> las rutas críticas, al menor costo.</p>`,
+      decir: "Costo marginal = cuánto cuesta ganar un día. A, C, F, I y M no se pueden comprimir." });
+    let dur = { ...dur0 };
+    AM.forEach((s, i) => {
+      const opciones = `<table><tr><th>Opción</th><th>Costo</th></tr>${s.opciones.slice(0, 6).map((o, k) => `<tr${k === 0 ? ' class="marcada"' : ""}><td>${o.ids.join(" + ")}${o.ids.length === 1 && s.rutas.length > 1 ? " (común)" : ""}</td><td>${q(o.costo)}</td></tr>`).join("")}</table>`;
+      const antes = { ...dur };
+      if (s.rutas.length > 1 && AM[i - 1] && AM[i - 1].rutas.length === 1) {
+        P.push({ etapa: 4, titulo: `Paso ${i + 1}: ${s.de} → ${s.a} días`, dibujar: rutas(antes, [], OBJ),
+          html: `<p>Ahora hay <b>dos rutas críticas</b> de ${s.de} días: ${s.rutas.join(" y ")}. Hay que bajar las dos.</p>`,
+          pregunta: "¿Qué comprimirían? ¿La actividad más larga (D)?" });
+      }
+      dur = { ...s.dur };
+      const dosRutas = s.rutas.length > 1, primeraDoble = dosRutas && AM[i - 1] && AM[i - 1].rutas.length === 1;
+      P.push({ etapa: 4, titulo: `Paso ${i + 1}: ${s.de} → ${s.a} días → comprimir ${s.decision.join(" + ")}`, dibujar: rutas(dur, s.decision, OBJ),
+        html: `<p>Rutas críticas: ${s.rutas.join(" y ")}.</p><p><b>Opciones evaluadas</b> (1 día cada una):</p>${opciones}`,
+        calc: `Decisión: ${s.decision.join(" + ")} = ${q(s.costo)}\nCosto acumulado = ${q(s.acumulado - s.costo)} + ${q(s.costo)} = ${q(s.acumulado)}`,
+        decir: primeraDoble ? `Lo intuitivo era D, pero cuesta ${q(EN.comp.find(c => c.id === "D").cm)}. ${s.decision.join(" + ")} está en las dos rutas y cuesta ${q(s.costo)}: es más barato que D y que cualquier combinación de una actividad por ruta.`
+          : !dosRutas ? "Con una sola ruta crítica se comprime su actividad más barata que todavía se pueda acortar." : "Con dos rutas críticas se compara la actividad común más barata contra la combinación más barata (una por ruta)." });
+    });
+    const curva = [];
+    for (let d = C.D; d >= OBJ; d--) curva.push({ d, total: EN.costoNormal + EN.mejor[d].costo + IND * d, extra: EN.mejor[d].costo });
+    const opt = curva.reduce((a, b) => (b.total < a.total - 1e-9 ? b : a)), sel = curva.find(x => x.d === OBJ);
+    P.push({ etapa: 5, titulo: `Lo más barato: ${opt.d} días`, dibujar: div => dibujarCosto(nuevoSVG(div, "0 0 10 10", true), curva, opt, OBJ, OBJ, C.D),
+      html: `<table><tr><th>Días</th>${curva.map(c => `<th>${c.d}</th>`).join("")}</tr><tr><td>Extra</td>${curva.map(c => `<td>${c.extra.toLocaleString("en-US")}</td>`).join("")}</tr><tr><td>Total</td>${curva.map(c => `<td${c.d === opt.d ? ' style="color:var(--ok);font-weight:700"' : ""}>${c.total.toLocaleString("en-US")}</td>`).join("")}</table>`,
+      calc: `Costo total = directo (${q(EN.costoNormal)} + extra) + indirecto (${q(IND)}/día)\nÓptimo: ${opt.d} días = ${q(opt.total)}\nA ${OBJ} días: ${q(sel.total)} (+${q(sel.total - opt.total)})`,
+      decir: `Conviene comprimir mientras el día cueste menos que los ${q(IND)} de costo indirecto. Ir a ${OBJ} días cuesta ${q(sel.total - opt.total)} más que el óptimo: es una decisión de negocio (la marcha blanca), no de costo.` });
+    P.push({ etapa: 5, titulo: "Repaso en 3 ideas", dibujar: rutas(AM[AM.length - 1].dur, [], OBJ),
+      html: `<ol class="ideas"><li><b>Costo marginal</b> = cuánto cuesta ganar un día.</li><li>Hay que acortar <b>todas</b> las rutas críticas: comparar actividad común vs combinación.</li><li>${OBJ} días cuestan <b>${q(AM[AM.length - 1].acumulado)}</b> extra; lo más barato es <b>${opt.d}</b> días.</li></ol>` });
+    return P;
+  }
+
+  // ============================================================ 4. Flujo máximo — clase
+  const ITS = IO.secuencia(RED_HOTEL), ITP = IO.secuencia(RED_PRACT);
+  const FINAL = IO.resumenFlujo(RED_HOTEL.arcos, ITS[ITS.length - 1].res, RED_HOTEL.origen, ITS[ITS.length - 1].total);
+  const FINP = IO.resumenFlujo(RED_PRACT.arcos, ITP[ITP.length - 1].res, RED_PRACT.origen, ITP[ITP.length - 1].total);
+  const DEM = RED_HOTEL.demanda_congreso_unidades;
+  const fl = (red, o) => div => dibujarFlujo(svgFlujo(div, red), red, o);
+  const tablaAct = it => `<table><tr><th>Arco</th><th>Antes</th><th>Operación</th><th>Después</th></tr>` +
+    it.tabla.map(r => `<tr><td>${r.i}→${r.j}</td><td>${r.d0}</td><td>${r.d0} − ${it.c}</td><td><b>${r.d1}</b></td></tr><tr><td style="color:var(--muted)">${r.j}→${r.i} (otro lado)</td><td>${r.r0}</td><td>${r.r0} + ${it.c}</td><td><b>${r.r1}</b></td></tr>`).join("") + `</table>`;
+  const inversos = (red, it) => it.arcos.filter(([i, j]) => !red.arcos.some(a => a.de === i && a.a === j));
+
+  function pasosIter(red, its, k, detalle, extra = {}) {
+    const it = its[k], prev = its[k - 1], P = [], cam = flecha(it.tr), inv = inversos(red, it);
+    const nums = it.arcos.map(([i, j], n) => `${i}→${j} = ${it.resid[n]}${inv.some(([a, b]) => a === i && b === j) ? " (al revés)" : ""}`).join("\n");
+    const cuello = new Set(it.arcos.filter((a, n) => it.resid[n] === it.c).map(([i, j]) => K(i, j)));
+    const nota = inv.length ? `<p class="aviso"><b>${inv.map(([i, j]) => i + "→" + j).join(", ")}</b> va <b>al revés</b>: su número existe porque antes se mandó flujo por ${inv.map(([i, j]) => j + "→" + i).join(", ")}. Usarlo <b>devuelve</b> ese flujo y lo redirige.</p>` : "";
+    const tit = `Iteración ${k}`;
+    if (detalle) {
+      P.push({ etapa: 4, titulo: `${tit} · buscar camino: ${cam}`, dibujar: fl(red, { modo: "residual", res: prev.res, camino: it.arcos, total: prev.total }),
+        html: `<p>Camino de ${red.origen} a ${red.destino} donde todos los números del lado de salida son &gt; 0:</p>`, calc: nums + "\n→ todos > 0 ✓ es trayectoria de aumento", html2: nota,
+        decir: extra.decirCamino || "Leemos el número junto al nodo de donde sale cada tramo." });
+      P.push({ etapa: 4, titulo: `${tit} · c* = ${it.c}`, dibujar: fl(red, { modo: "residual", res: prev.res, camino: it.arcos, total: prev.total, cuello }),
+        calc: `c* = mín${lista(it.resid)} = ${it.c}`, decir: extra.decirC || "El tramo más angosto manda (recuadrado): por todo el camino cabe lo que cabe en su parte más angosta." });
+      P.push({ etapa: 4, titulo: `${tit} · actualizar → total ${it.total}`, dibujar: fl(red, { modo: "residual", res: it.res, camino: it.arcos, total: it.total }),
+        html: `<p>En cada tramo: <b>restar ${it.c}</b> del lado de salida y <b>sumar ${it.c}</b> del otro lado.</p>${tablaAct(it)}`,
+        calc: `Flujo total = ${prev.total} + ${it.c} = ${it.total}`, decir: extra.decirAct || "Restamos de un lado y sumamos del otro; lo sumado es lo que después se podrá devolver." });
+    } else {
+      P.push({ etapa: 4, titulo: `${tit}: ${cam} → total ${it.total}`, dibujar: fl(red, { modo: "residual", res: it.res, camino: it.arcos, total: it.total }),
+        calc: `Números del camino: ${lista(it.resid)}\nc* = mín${lista(it.resid)} = ${it.c}\nFlujo total = ${prev.total} + ${it.c} = ${it.total}`, html2: nota,
+        decir: k === its.length - 2 ? "Tras esta iteración parece que ya no hay caminos: A→C, A→D, B→D y B→E están llenos…" : "Mismo procedimiento: camino → el más chico manda → restar de un lado y sumar del otro." });
+    }
+    return P;
+  }
+
+  function pasosFlujo() {
+    const todas = $("#t-flujo .detalle").checked, H = RED_HOTEL, R = RED_PRACT, P = [];
+    P.push({ etapa: 1, titulo: "¿La red aguanta el congreso?", dibujar: fl(H, { modo: "cap" }),
+      html: `<p>Cada número es la <b>capacidad</b> del enlace (${H.unidad}). El congreso necesita <b>${DEM} unidades = ${(DEM * 100).toLocaleString("en-US")} Mbps</b> al mismo tiempo.</p><p style="color:var(--muted);font-size:.9rem">${nombresNodos(H)}</p>`,
+      decir: "Piensen en tuberías: por un tubo no pasa más de lo que aguanta su parte más angosta. ¿Cuánto podemos hacer llegar, a la vez, del router (O) a los clientes (T)?" });
+    P.push({ etapa: 2, titulo: "Un cable, dos números", dibujar: fl(H, { modo: "residual", res: ITS[0].res, foco: new Set([K("A", "B")]) }),
+      html: `<p>Miremos el cable <b>A→B</b> (capacidad 3):</p><div class="calc">Antes:        A ─3──────0─ B\nMando 3 A→B:  A ─0──────3─ B</div>` +
+        `<p>• Número junto a <b>A</b>: lo que todavía <b>cabe</b> de A hacia B.<br>• Número junto a <b>B</b>: lo que se puede <b>devolver</b> de B hacia A.</p>`,
+      decir: "Esta es la red residual: cada cable tiene dos números. Al mandar flujo, restamos de un lado y sumamos del otro." });
+    const r1 = ITP[1], r2it = ITP[2];
+    P.push({ etapa: 2, titulo: "Red de práctica: ¿cuánto pasa?", dibujar: fl(R, { modo: "cap" }),
+      html: `<p>Una red pequeña donde todos los cables valen 1.</p>`, pregunta: "¿Cuánto se puede mandar de O a T?",
+      decir: "A simple vista: 2. Uno por arriba (O→A→T) y otro por abajo (O→B→T)." });
+    P.push({ etapa: 2, titulo: `Camino "obvio": ${flecha(r1.tr)}`, dibujar: fl(R, { modo: "residual", res: r1.res, camino: r1.arcos, total: r1.total }),
+      calc: `c* = mín${lista(r1.resid)} = ${r1.c}\nRestar 1 del lado de salida y sumar 1 del otro lado\nFlujo total = ${r1.total}`,
+      decir: "Supongamos que el primer camino que encontramos es este, que pasa por el cable del medio." });
+    P.push({ etapa: 2, titulo: "¡Me trabé!", dibujar: fl(R, { modo: "residual", res: r1.res, total: r1.total }),
+      html: `<p>Busco otro camino hacia adelante:</p><div class="calc">O→A = 0 ✗ (lleno)\nO→B = 1 ✓ → B→T = 0 ✗ (lleno)</div><p>Parece que el máximo es 1… ¡pero sabemos que se puede 2!</p>`,
+      decir: "Si solo pudiéramos avanzar hacia adelante, aquí nos quedaríamos con 1. Miren el 1 junto a B en el cable del medio." });
+    P.push({ etapa: 2, titulo: `El arco inverso lo destraba: ${flecha(r2it.tr)}`, dibujar: fl(R, { modo: "residual", res: r2it.res, camino: r2it.arcos, total: r2it.total }),
+      calc: `O→B = 1\nB→A = 1 (al revés: lo que se puede devolver)\nA→T = 1\nc* = 1 → Flujo total = 1 + 1 = 2 ✓`,
+      decir: "B→A tiene 1 porque antes mandamos 1 por A→B. Usarlo significa devolver ese flujo." });
+    P.push({ etapa: 2, titulo: "Qué pasó en realidad", dibujar: fl(R, { modo: "flujo", flujo: FINP.flujo, total: FINP.F }),
+      html: `<p>El flujo de A→B quedó en <b>${FINP.flujo[K("A", "B")]}</b>: se <b>canceló</b>. El resultado final es O→A→T y O→B→T, la respuesta obvia.</p>`,
+      decir: "El algoritmo corrigió su mala decisión inicial sin empezar de cero. En el hotel va a pasar exactamente esto en la iteración 6." });
+    P.push({ etapa: 3, titulo: "El algoritmo (Hillier)", dibujar: fl(H, { modo: "residual", res: ITS[0].res, total: 0 }),
+      html: `<ol class="ideas"><li>Buscar una <b>trayectoria de aumento</b>: camino de O a T con todos los números del lado de salida &gt; 0.</li><li><b>c*</b> = el número más chico del camino.</li><li><b>Restar c*</b> del lado de salida y <b>sumar c*</b> del otro lado. Total += c*.</li></ol><p>✅ <b>Parar</b> cuando ya no exista ninguna trayectoria de aumento.</p>`,
+      decir: "Ahora lo aplicamos a la red del hotel. Al inicio no circula nada: cada cable tiene su capacidad de un lado y 0 del otro." });
+    for (let k = 1; k < ITS.length; k++) {
+      const ult = k === ITS.length - 1;
+      P.push(...pasosIter(H, ITS, k, todas || k === 1 || ult, ult ? {
+        decirCamino: "Parece que ya no hay caminos… pero B→A va al revés: tiene 3 porque en la iteración 1 mandamos 3 por A→B. Igual que en la red de práctica.",
+        decirC: "El cable A→C es el más angosto del camino: cabe 1.",
+        decirAct: "En la red real: A deja de mandar 1 hacia B y lo manda por A→C; B lo recibe directo del router por O→B. Se reacomoda el tráfico y cabe 1 más." } : {}));
+    }
+    const ultimo = ITS[ITS.length - 1];
+    P.push({ etapa: 4, titulo: "✅ Parada", dibujar: fl(H, { modo: "residual", res: ultimo.res, alc: FINAL.alc, total: FINAL.F }),
+      html: `<div class="parada">Desde ${H.origen}, siguiendo números &gt; 0, solo se llega a <b>${lista([...FINAL.alc].sort())}</b>. ${H.destino} no es alcanzable: <b>no hay más trayectorias de aumento</b>.</div><p><b>Flujo máximo = ${FINAL.F} unidades = ${(FINAL.F * 100).toLocaleString("en-US")} Mbps.</b></p>`,
+      decir: "Los nodos resaltados son los que todavía se alcanzan desde O. Todos los cables que salen de ellos hacia las zonas están llenos (0)." });
+    const sat = H.arcos.filter(a => Math.abs(FINAL.flujo[K(a.de, a.a)] - a.cap) < 1e-9), fuera = sat.filter(a => !FINAL.corte.includes(a));
+    P.push({ etapa: 5, titulo: `Corte mínimo = ${FINAL.capCorte}`, dibujar: fl(H, { modo: "flujo", flujo: FINAL.flujo, corte: FINAL.corte, total: FINAL.F }),
+      calc: `Corte ${lista([...FINAL.alc].sort())} | ${lista(Object.keys(H.pos).filter(n => !FINAL.alc.has(n)))}\n${FINAL.corte.map(a => `${a.de}→${a.a} (${a.cap})`).join(" + ")} = ${FINAL.capCorte} = flujo máximo ✓`,
+      html2: `<p><b>Comprobación:</b> sale de O = ${H.arcos.filter(a => a.de === H.origen).map(a => FINAL.flujo[K(a.de, a.a)]).join(" + ")} = ${FINAL.F}; entra a T = ${H.arcos.filter(a => a.a === H.destino).map(a => FINAL.flujo[K(a.de, a.a)]).join(" + ")} = ${FINAL.F}.</p>` +
+        (fuera.length ? `<p class="aviso">${fuera.map(a => a.de + "→" + a.a).join(" y ")} están llenos pero <b>no</b> están en el corte: ampliarlos no ayuda.</p>` : ""),
+      decir: `Si cortamos la red entre los switches y las zonas, los cables cortados suman ${FINAL.capCorte}. Por ahí no puede pasar más, y ya mandamos ${FINAL.F}: por eso es el máximo. El cuello de botella son esos enlaces, no el internet.`,
+      pregunta: "¿Contratamos más internet (duplicar O→A y O→B)?" });
+    const wi = cambios => { const caps = H.arcos.map(a => ({ ...a, cap: cambios[K(a.de, a.a)] ? cambios[K(a.de, a.a)](a.cap) : a.cap })); return { caps, r: IO.edmondsKarp(caps, H.origen, H.destino) }; };
+    const isp = wi({ [K("O", "A")]: v => 2 * v, [K("O", "B")]: v => 2 * v }), be = wi({ [K("B", "E")]: v => v + 3 });
+    P.push({ etapa: 5, titulo: `Más internet → sigue en ${isp.r.F}`, dibujar: fl(H, { modo: "flujo", flujo: isp.r.flujo, corte: isp.r.corte, total: isp.r.F, arcos: isp.caps }),
+      html: `<p>Con el doble de internet el flujo máximo sigue en <b>${isp.r.F}</b>: el cuello de botella no cambió.</p>`,
+      decir: "Pagar más internet no sirve: el tráfico se atasca en los enlaces hacia las zonas." });
+    P.push({ etapa: 5, titulo: `+300 Mbps en B→E → ${be.r.F}`, dibujar: fl(H, { modo: "flujo", flujo: be.r.flujo, corte: be.r.corte, total: be.r.F, arcos: be.caps }),
+      html: `<div class="parada">Ampliando B→E de 300 a 600 Mbps el flujo máximo llega a <b>${be.r.F} = ${(be.r.F * 100).toLocaleString("en-US")} Mbps</b>${be.r.F >= DEM ? ": cubre la demanda del congreso" : ""}.</div>`,
+      decir: "Recomendación: ampliar el enlace del switch core 2 hacia el área social." });
+    P.push({ etapa: 5, titulo: "Repaso en 3 ideas", dibujar: fl(H, { modo: "flujo", flujo: FINAL.flujo, corte: FINAL.corte, total: FINAL.F }),
+      html: `<ol class="ideas"><li>Red residual: cada cable tiene <b>lo que cabe</b> y <b>lo que se puede devolver</b>.</li><li>Trayectoria de aumento → <b>c*</b> = el más chico → restar de un lado, sumar del otro → hasta que no haya caminos.</li><li><b>Corte mínimo</b> = cuello de botella (${FINAL.capCorte}): más internet no sirve; ampliar B→E sí.</li></ol>` });
+    return P;
+  }
+
+  // ============================================================ Explorar: CPM (tabla editable)
+  let acts = copia(ACTS_CASO), ultimo = null;
+  $("#plazo").value = PLAZO;
+  function construirTabla() {
+    const t = $("#tabla-cpm");
+    t.innerHTML = "<thead><tr><th>Act.</th><th>Actividad</th><th>o</th><th>m</th><th>p</th><th>t<sub>e</sub></th><th>σ²</th><th>IC</th><th>TC</th><th>IL</th><th>TL</th><th>Holgura</th></tr></thead>";
+    const tb = document.createElement("tbody");
+    acts.forEach((a, k) => {
+      const tr = document.createElement("tr");
+      tr.id = "fila-" + a.id;
+      tr.innerHTML = `<td>${a.id}</td><td class="izq">${a.nombre}</td>` +
+        ["o", "m", "p"].map(c => `<td><input type="number" min="0" step="0.5" data-k="${k}" data-c="${c}" value="${a[c]}" aria-label="${c} de ${a.id}"></td>`).join("") + "<td></td>".repeat(7);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    $$("input", t).forEach(inp => inp.addEventListener("input", () => { acts[+inp.dataset.k][inp.dataset.c] = parseFloat(inp.value); recalcular(); }));
+  }
+  function validar() {
+    const malas = acts.filter(a => !(Number.isFinite(a.o) && Number.isFinite(a.m) && Number.isFinite(a.p) && a.o >= 0 && a.o <= a.m && a.m <= a.p));
+    acts.forEach(a => $("#fila-" + a.id).classList.toggle("invalida", malas.includes(a)));
+    $("#msg-cpm").innerHTML = malas.length ? `<span class="error">Revisá ${malas.map(a => a.id).join(", ")}: se requiere 0 ≤ o ≤ m ≤ p.</span>` : "";
+    $("#mc-correr").disabled = malas.length > 0;
+    return !malas.length;
+  }
+  function recalcular() {
+    if (!validar()) return;
+    const pr = IO.pert(acts), te = Object.fromEntries(acts.map(a => [a.id, pr[a.id].te])), c = IO.cpm(acts, te);
+    ultimo = { pr, te, c };
+    acts.forEach(a => {
+      const cel = $("#fila-" + a.id).children, crit = c.criticas.includes(a.id);
+      [pr[a.id].te, pr[a.id].var, c.IC[a.id], c.TC[a.id], c.IL[a.id], c.TL[a.id], c.H[a.id]].forEach((v, i) => (cel[5 + i].textContent = fmt(v)));
+      $("#fila-" + a.id).classList.toggle("critica", crit);
+      cel[11].style.color = `var(${crit ? "--critico" : "--ok"})`;
+      cel[11].style.fontWeight = "700";
+    });
+    $("#dur-titulo").textContent = `— duración esperada = ${fmt(c.D)} días`;
+    const todos = new Set(c.orden);
+    dibujarAON($("#svg-aon"), { acts, c, te, adelante: todos, atras: todos, holguras: true, critica: true });
+    dibujarGantt($("#svg-gantt"), c, te, acts, +$("#plazo").value);
+    actualizarProb();
+  }
+  $("#reset-cpm").addEventListener("click", () => { acts = copia(ACTS_CASO); construirTabla(); recalcular(); });
+
+  // ============================================================ Explorar: PERT
+  function actualizarProb() {
+    if (!ultimo) return;
+    const plazo = +$("#plazo").value, p = IO.probabilidad(acts, plazo);
+    $("#plazo-val").textContent = plazo;
+    $("#kpis-prob").innerHTML = [["μ (días)", fmt(p.mu)], ["σ²", fmt(p.var)], ["σ", f4(p.sigma)], ["z", f4(p.z)], [`P(T ≤ ${plazo})`, pct(p.p)]]
+      .map(([k, v]) => `<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join("");
+    $("#calc-prob").textContent = `Ruta crítica: ${p.ruta.join("-")}\nσ² = ${p.vars.map(fmt).join(" + ")} = ${fmt(p.var)}\nσ = √${fmt(p.var)} = ${f4(p.sigma)}\nz = (${plazo} − ${fmt(p.mu)}) / ${f4(p.sigma)} = ${f4(p.z)}\nP(T ≤ ${plazo}) = Φ(${f4(p.z)}) = ${f4(p.p)} → ${pct(p.p)}`;
+    dibujarNormal($("#svg-normal"), p.mu, p.sigma, plazo, p.p);
+  }
+  $("#plazo").addEventListener("input", () => { actualizarProb(); if (ultimo) dibujarGantt($("#svg-gantt"), ultimo.c, ultimo.te, acts, +$("#plazo").value); });
+  $("#mc-n").addEventListener("input", () => ($("#mc-n-val").textContent = (+$("#mc-n").value).toLocaleString("en-US")));
+  $("#mc-n-val").textContent = (+$("#mc-n").value).toLocaleString("en-US");
+  $("#mc-correr").addEventListener("click", () => {
+    const n = +$("#mc-n").value, semilla = parseInt($("#mc-semilla").value, 10) || 0, plazo = +$("#plazo").value;
+    $("#mc-res").innerHTML = "<p>Calculando…</p>";
+    $("#mc-correr").disabled = true;
+    setTimeout(() => {
+      const mc = IO.montecarlo(acts, n, semilla), an = IO.probabilidad(acts, plazo), ps = mc.prob(plazo);
+      $("#mc-res").innerHTML = `<div class="kpis">${[["Media", fmt(mc.media)], ["Desv. estándar", fmt(mc.desv)], [`P(T ≤ ${plazo}) simulada`, pct(ps)], [`P(T ≤ ${plazo}) PERT`, pct(an.p)]]
+        .map(([k, v]) => `<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join("")}</div>` +
+        `<p class="aviso">Referencia del documento (Python/numpy, ${REF.n.toLocaleString("en-US")} corridas, semilla ${REF.semilla}): P(T ≤ ${REF.plazo}) = ${REF.p_plazo}. Este simulador usa otro generador aleatorio, así que puede variar unas décimas.</p>`;
+      let mn = Infinity, mx = -Infinity;
+      for (const t of mc.T) { if (t < mn) mn = t; if (t > mx) mx = t; }
+      const ancho = 0.5, b0 = Math.floor(mn), nb = Math.ceil((mx - b0) / ancho) + 1, cuenta = new Array(nb).fill(0);
+      for (const t of mc.T) cuenta[Math.floor((t - b0) / ancho)]++;
+      dibujarHist($("#svg-hist"), { b0, ancho, dens: cuenta.map(c => c / (mc.n * ancho)) }, an.mu, an.sigma, plazo, `MC ${pct(ps)} · PERT ${pct(an.p)}`);
+      const crit = ultimo ? ultimo.c.criticas : [];
+      $("#mc-crit").innerHTML = Object.entries(mc.idxAct).sort((a, b) => b[1] - a[1]).map(([a, v]) =>
+        `<div class="barra"><b>${a}</b><div class="fondo"><div style="width:${v * 100}%;background:var(${crit.includes(a) ? "--critico" : "--primario"})"></div></div><span>${pct(v)}</span></div>`).join("") +
+        `<div class="leyenda"><span><i style="background:var(--critico)"></i>Crítica según PERT</span><span><i style="background:var(--primario)"></i>No crítica según PERT</span></div><h3 style="font-size:1rem;margin:14px 0 4px">Por ruta</h3>` +
+        mc.idxRuta.sort((a, b) => b.p - a.p).map(r => `<div class="barra" style="grid-template-columns:150px 1fr 64px"><span>${r.ruta}</span><div class="fondo"><div style="width:${r.p * 100}%;background:var(--flujo)"></div></div><span>${pct(r.p)}</span></div>`).join("");
+      $("#mc-correr").disabled = false;
+    }, 30);
+  });
+
+  // ============================================================ Explorar: Compresión
+  const sObj = $("#comp-obj"), sInd = $("#comp-ind");
+  sObj.min = EN.dmin; sObj.max = EN.dmax; sObj.value = OBJ; sInd.value = IND;
+  function actualizarComp() {
+    const d = +sObj.value, ind = +sInd.value, m = EN.mejor[d];
+    $("#comp-obj-val").textContent = d;
+    $("#comp-ind-val").textContent = q(ind);
+    $("#comp-kpis").innerHTML = [["Costo extra mínimo", q(m.costo)], ["Costo directo total", q(EN.costoNormal + m.costo)], ["Combinaciones evaluadas", EN.total.toLocaleString("en-US")]]
+      .map(([k, v]) => `<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join("");
+    $("#comp-tabla").innerHTML = "<thead><tr><th>Act.</th><th>t normal</th><th>t compresión</th><th>Costo marginal</th><th>Máx.</th><th>Días comprimidos</th><th>Costo</th><th>Nueva duración</th></tr></thead><tbody>" +
+      EN.comp.map((c, j) => `<tr${m.x[j] ? ' class="critica"' : ""}><td>${c.id}</td><td>${c.tn}</td><td>${c.tc}</td><td>${q(c.cm)}</td><td>${c.red}</td><td><b>${m.x[j]}</b></td><td>${m.x[j] ? q(c.cm * m.x[j]) : "—"}</td><td>${c.tn - m.x[j]}</td></tr>`).join("") +
+      `<tr><td colspan="6" style="text-align:right"><b>Total</b></td><td><b>${q(m.costo)}</b></td><td></td></tr></tbody>`;
+    const curva = [];
+    for (let k = EN.dmax; k >= EN.dmin; k--) curva.push({ d: k, total: EN.costoNormal + EN.mejor[k].costo + ind * k });
+    const opt = curva.reduce((a, b) => (b.total < a.total - 1e-9 ? b : a)), sel = curva.find(x => x.d === d);
+    $("#comp-kpis2").innerHTML = [["Duración óptima", `${opt.d} días`], ["Costo total óptimo", q(opt.total)], [`Total a ${d} días`, q(sel.total)], ["Sobrecosto", q(sel.total - opt.total)]]
+      .map(([k, v]) => `<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join("");
+    dibujarCosto($("#svg-costo"), curva, opt, d, EN.dmin, EN.dmax);
+  }
+  sObj.addEventListener("input", actualizarComp);
+  sInd.addEventListener("input", actualizarComp);
+
+  // ============================================================ Flujo: Construí y What-if (misma pantalla dividida)
+  const secF = $("#t-flujo"), diagF = $(".diag", secF), panelF = $(".panel", secF);
+  let redCons = RED_HOTEL, cRes, cTotal, cSel, cHist, cMsg;
+  function reiniciarCons() { cRes = IO.residualInicial(redCons.arcos); cTotal = 0; cSel = [redCons.origen]; cHist = []; cMsg = ""; mostrarCons(); }
+  function clicCons(n) {
+    const u = cSel[cSel.length - 1];
+    if (u === redCons.destino) cMsg = `<p class="aviso">Ya llegaste a ${redCons.destino}: enviá c* o quitá nodos.</p>`;
+    else if (cSel.includes(n)) cMsg = `<p class="error">${n} ya está en el camino: no se repiten nodos.</p>`;
+    else if (!(K(u, n) in cRes)) cMsg = `<p class="error">No hay cable entre ${u} y ${n}.</p>`;
+    else if (cRes[K(u, n)] <= 0) cMsg = `<p class="error">${u}→${n} tiene 0 del lado de ${u}: ese sentido ya está lleno.</p>`;
+    else { cSel.push(n); cMsg = ""; }
+    mostrarCons();
+  }
+  function mostrarCons() {
+    const arcos = cSel.slice(0, -1).map((n, k) => [n, cSel[k + 1]]), resid = arcos.map(([i, j]) => cRes[K(i, j)]);
+    const completa = cSel[cSel.length - 1] === redCons.destino, hay = IO.alcanzables(cRes, redCons.origen).has(redCons.destino);
+    const maxRed = IO.edmondsKarp(redCons.arcos, redCons.origen, redCons.destino).F;
+    panelF.innerHTML = `<span class="etapa">Practicá</span><h3>Construí tu trayectoria</h3>` +
+      `<p>Tocá los nodos en orden desde <b>${redCons.origen}</b>. Cada tramo necesita un número &gt; 0 del lado de donde salís (los arcos al revés valen).</p>` +
+      `<div class="calc" id="cons-calc">Camino: ${cSel.join("→")}${completa ? "" : "→ …"}\nNúmeros: ${lista(resid)}${completa ? `\nc* = mín${lista(resid)} = ${Math.min(...resid)}` : ""}\nFlujo total: ${cTotal}</div>` + cMsg +
+      `<div class="fila"><button class="btn sec" id="c-quitar" type="button">↶ Quitar nodo</button><button class="btn" id="c-enviar" type="button" ${completa ? "" : "disabled"}>Enviar c*</button><button class="btn sec" id="c-reini" type="button">↺ Reiniciar</button></div>` +
+      (cHist.length ? `<p>Enviadas: ${cHist.map(h => `${h.tr} (${h.c})`).join("; ")}</p>` : "") +
+      (!hay ? `<div class="parada">✅ No queda ninguna trayectoria de aumento: tu flujo de <b>${cTotal}</b> es el máximo${cTotal === maxRed ? "." : ` (revisá: el máximo es ${maxRed}).`}</div>` : "");
+    $("#c-quitar").onclick = () => { if (cSel.length > 1) cSel.pop(); cMsg = ""; mostrarCons(); };
+    $("#c-reini").onclick = reiniciarCons;
+    $("#c-enviar").onclick = () => { const a = IO.aumentar(cRes, cSel); if (!a) return; cRes = a.res; cTotal += a.c; cHist.push({ tr: cSel.join("→"), c: a.c }); cSel = [redCons.origen]; cMsg = ""; mostrarCons(); };
+    dibujarFlujo(svgFlujo(diagF, redCons), redCons, { modo: "residual", res: cRes, camino: arcos, total: cTotal, sel: cSel, clic: hay ? clicCons : null });
+  }
+  $$("#red-cons button").forEach(b => b.addEventListener("click", () => {
+    $$("#red-cons button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    redCons = b.dataset.red === "practica" ? RED_PRACT : RED_HOTEL;
+    reiniciarCons();
+  }));
+  let caps = copia(RED_HOTEL.arcos);
+  function mostrarWI() {
+    const H = RED_HOTEL, r = IO.edmondsKarp(caps, H.origen, H.destino), ok = r.F >= DEM;
+    panelF.innerHTML = `<span class="etapa">Practicá</span><h3>What-if: cambiá capacidades</h3>` +
+      `<div class="fila"><button class="btn sec" id="w-isp" type="button">Duplicar internet</button><button class="btn sec" id="w-be" type="button">+3 en B→E</button><button class="btn sec" id="w-reset" type="button">↺ Caso</button></div>` +
+      `<div class="kpis" id="wi-kpis"><div class="kpi"><b>${fmt(r.F)} u</b><span>${(r.F * 100).toLocaleString("en-US")} Mbps</span></div><div class="kpi"><b>${DEM} u</b><span>Demanda</span></div></div>` +
+      `<div class="${ok ? "parada" : "aviso"}">${ok ? "✅ Cubre la demanda del congreso." : `Faltan ${fmt(DEM - r.F)} u. Corte mínimo: ${r.corte.map(a => a.de + "→" + a.a).join(" + ")} = ${fmt(r.capCorte)}.`}</div>` +
+      `<div class="scroll"><table id="wi-tabla"><tr><th>Arco</th><th>Capacidad</th><th>Flujo</th><th>Corte</th></tr>${caps.map((a, k) => `<tr><td>${a.de}→${a.a}</td><td><input type="number" min="0" step="1" data-k="${k}" value="${a.cap}" aria-label="Capacidad ${a.de}→${a.a}"></td><td>${fmt(r.flujo[K(a.de, a.a)])}</td><td>${r.corte.includes(a) ? "✂" : ""}</td></tr>`).join("")}</table></div>`;
+    $$("#wi-tabla input").forEach(inp => inp.addEventListener("change", () => { const v = parseFloat(inp.value); caps[+inp.dataset.k].cap = Number.isFinite(v) && v >= 0 ? v : 0; mostrarWI(); }));
+    $("#w-isp").onclick = () => { caps.filter(c => c.de === H.origen).forEach(c => (c.cap *= 2)); mostrarWI(); };
+    $("#w-be").onclick = () => { caps.find(c => c.de === "B" && c.a === "E").cap += 3; mostrarWI(); };
+    $("#w-reset").onclick = () => { caps = copia(RED_HOTEL.arcos); mostrarWI(); };
+    dibujarFlujo(svgFlujo(diagF, H), H, { modo: "flujo", flujo: r.flujo, corte: r.corte, total: r.F, arcos: caps });
+  }
+
+  // ============================================================ Inicio
+  presentador("t-cpm", pasosCPM);
+  presentador("t-pert", pasosPERT);
+  presentador("t-comp", pasosComp);
+  presentador("t-flujo", pasosFlujo);
+  modos("t-cpm", m => (m === "explorar" ? recalcular() : PRES["t-cpm"].dibujar()));
+  modos("t-pert", m => (m === "explorar" ? actualizarProb() : PRES["t-pert"].dibujar()));
+  modos("t-comp", m => (m === "explorar" ? actualizarComp() : PRES["t-comp"].dibujar()));
+  modos("t-flujo", m => (m === "construir" ? reiniciarCons() : m === "whatif" ? mostrarWI() : PRES["t-flujo"].dibujar()));
+  construirTabla();
+  recalcular();
+  actualizarComp();
+})();
+
+</script>
+</body>
+</html>
