@@ -94,6 +94,26 @@ svg text { font-family: Calibri, Carlito, "Segoe UI", sans-serif; fill: var(--te
 .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
 @media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr; } }
 .nodo-clic { cursor: pointer; }
+/* Pulido de interacción (criterios de emil-design-eng): respuesta al toque, sin animar el avance de pasos */
+:root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.btn, .grupo button, .iconos button, nav button, .progreso button {
+  transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+.btn:active:not(:disabled), .iconos button:active, .grupo button:active { transform: scale(0.97); }
+.progreso button:active { transform: scale(0.85); }
+.progreso button.actual:active { transform: scale(1.1); }
+:focus-visible { outline: 2px solid var(--flujo); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  nav button:hover { color: var(--primario); }
+  .grupo button:not([aria-pressed="true"]):hover, .iconos button:hover { background: var(--suave); }
+  .btn.sec:hover:not(:disabled) { background: color-mix(in srgb, var(--primario) 8%, transparent); }
+  .btn:not(.sec):hover:not(:disabled) { background: color-mix(in srgb, var(--primario) 88%, black); }
+  .progreso button:hover { border-width: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn, .grupo button, .iconos button, nav button, .progreso button { transition: background-color 150ms ease, color 150ms ease; }
+  .btn:active:not(:disabled), .iconos button:active, .grupo button:active, .progreso button:active, .progreso button.actual:active { transform: none; }
+}
 footer { color: var(--muted); font-size: .8rem; text-align: center; padding: 10px; }
 @media (min-width: 900px) { footer { display: none; } }
 @media (max-width: 899px) {
@@ -118,6 +138,8 @@ footer { color: var(--muted); font-size: .8rem; text-align: center; padding: 10p
   footer { padding-bottom: 84px; }
   footer .teclas { display: none; }
   th, td { padding: 4px 5px; }
+  /* iOS amplía la página al enfocar campos con letra < 16 px */
+  input[type=number] { font-size: 16px; }
 }
 </style>
 </head>
