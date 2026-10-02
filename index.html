@@ -97,11 +97,27 @@ svg text { font-family: Calibri, Carlito, "Segoe UI", sans-serif; fill: var(--te
 footer { color: var(--muted); font-size: .8rem; text-align: center; padding: 10px; }
 @media (min-width: 900px) { footer { display: none; } }
 @media (max-width: 899px) {
-  .clase { grid-template-columns: 1fr; height: auto; }
-  .diag { min-height: 260px; overflow-x: auto; justify-content: flex-start; }
-  .diag > svg { min-width: 640px; height: auto; }
+  /* Celular: una columna (el selector con #t-cpm también, porque tiene más prioridad) */
+  .clase, #t-cpm .clase { grid-template-columns: 1fr; height: auto; min-height: 0; }
+  .diag { min-height: 220px; overflow-x: auto; justify-content: flex-start; -webkit-overflow-scrolling: touch; }
+  .diag > svg { min-width: 720px; height: auto; }
   .diag.angosto > svg { min-width: 0; }
-  header.sup h1 { display: none; }
+  .panel { overflow: visible; }
+  header.sup { flex-wrap: nowrap; gap: 4px; padding: 0 6px; }
+  header.sup h1, #pantalla { display: none; }
+  nav button { padding: 12px 8px 9px; font-size: .95rem; }
+  main { padding: 8px 8px 84px; }
+  .ctl { gap: 8px; }
+  /* Botones de paso fijos abajo, al alcance del pulgar */
+  .pasos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: space-between; gap: 8px;
+    background: var(--surface); border-top: 1px solid var(--border); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+  .pasos .btn { padding: 10px 16px; font-size: 1.05rem; }
+  .pasos .sig { flex: 1; }
+  .pasos .num { min-width: 6.5em; }
+  .progreso button { width: 18px; height: 18px; }
+  footer { padding-bottom: 84px; }
+  footer .teclas { display: none; }
+  th, td { padding: 4px 5px; }
 }
 </style>
 </head>
@@ -207,7 +223,7 @@ footer { color: var(--muted); font-size: .8rem; text-align: center; padding: 10p
     <div class="progreso solo-clase"></div>
   </section>
 </main>
-<footer>Investigación de Operaciones · PERT/CPM y flujo máximo · Funciona sin conexión · Caso ficticio · Teclas: → / ← o el clicker para avanzar</footer>
+<footer>Investigación de Operaciones · PERT/CPM y flujo máximo · Funciona sin conexión · Caso ficticio<span class="teclas"> · Teclas: → / ← o el clicker para avanzar</span></footer>
 <script>
 const DATOS = {"caso": {"meta": {"unidad_tiempo": "días hábiles", "moneda": "Q (quetzales)", "plazo_congreso_dias": 45, "objetivo_compresion_dias": 36, "costo_indirecto_por_dia": 1000, "montecarlo": {"n": 100000, "semilla": 2026, "distribucion": "beta-PERT"}}, "actividades": [{"id": "A", "nombre": "Levantamiento de requerimientos y site survey predictivo", "pred": [], "o": 1, "m": 4, "p": 7, "costo_normal": 2500, "compresion": null}, {"id": "B", "nombre": "Diseño de la red (cobertura, VLANs, cantidad de APs)", "pred": ["A"], "o": 2, "m": 5, "p": 8, "costo_normal": 4000, "compresion": {"tc": 4, "cc": 4900}}, {"id": "C", "nombre": "Aprobación del presupuesto por gerencia", "pred": ["B"], "o": 2, "m": 2, "p": 8, "costo_normal": 500, "compresion": null}, {"id": "D", "nombre": "Compra e importación de APs y switches PoE", "pred": ["C"], "o": 9, "m": 12, "p": 27, "costo_normal": 60000, "compresion": {"tc": 8, "cc": 69000}}, {"id": "E", "nombre": "Tendido de cableado estructurado Cat6", "pred": ["C"], "o": 6, "m": 9, "p": 18, "costo_normal": 18000, "compresion": {"tc": 6, "cc": 20000}}, {"id": "F", "nombre": "Instalación y configuración de switches PoE", "pred": ["D", "E"], "o": 2, "m": 2, "p": 8, "costo_normal": 2500, "compresion": null}, {"id": "G", "nombre": "Montaje físico de access points", "pred": ["D", "E"], "o": 4, "m": 7, "p": 10, "costo_normal": 6000, "compresion": {"tc": 4, "cc": 7800}}, {"id": "H", "nombre": "Configuración del controlador (SSIDs, VLANs, portal cautivo)", "pred": ["D"], "o": 2, "m": 5, "p": 8, "costo_normal": 3500, "compresion": {"tc": 3, "cc": 5100}}, {"id": "I", "nombre": "Certificación del cableado", "pred": ["E"], "o": 1, "m": 4, "p": 7, "costo_normal": 1800, "compresion": null}, {"id": "J", "nombre": "Integración del portal cautivo con el PMS del hotel", "pred": ["H"], "o": 3, "m": 6, "p": 15, "costo_normal": 5000, "compresion": {"tc": 4, "cc": 8000}}, {"id": "K", "nombre": "Pruebas de cobertura y roaming", "pred": ["F", "G", "I"], "o": 3, "m": 3, "p": 15, "costo_normal": 3000, "compresion": {"tc": 3, "cc": 4400}}, {"id": "L", "nombre": "Capacitación al personal de IT y recepción", "pred": ["J"], "o": 1, "m": 1, "p": 7, "costo_normal": 1200, "compresion": {"tc": 1, "cc": 1500}}, {"id": "M", "nombre": "Puesta en marcha (go-live)", "pred": ["K", "L"], "o": 1, "m": 1, "p": 1, "costo_normal": 1000, "compresion": null}], "red_flujo": {"unidad": "1 unidad = 100 Mbps", "origen": "O", "destino": "T", "demanda_congreso_unidades": 18, "nodos": {"O": "Router/firewall de borde (entrada del ISP)", "A": "Switch core principal", "B": "Switch core secundario", "C": "Distribución — Edificio colonial (habitaciones)", "D": "Distribución — Centro de convenciones", "E": "Distribución — Área social (lobby, restaurante, piscina)", "T": "Clientes WiFi (destino ficticio que agrupa los APs de las tres zonas)"}, "arcos": [{"de": "O", "a": "A", "cap": 10}, {"de": "O", "a": "B", "cap": 8}, {"de": "A", "a": "B", "cap": 3}, {"de": "A", "a": "C", "cap": 5}, {"de": "A", "a": "D", "cap": 3}, {"de": "B", "a": "D", "cap": 4}, {"de": "B", "a": "E", "cap": 3}, {"de": "C", "a": "E", "cap": 3}, {"de": "C", "a": "T", "cap": 4}, {"de": "D", "a": "T", "cap": 9}, {"de": "E", "a": "T", "cap": 8}], "secuencia_trayectorias": ["OABDT", "OACT", "OADT", "OBDT", "OBET", "OBACET"]}}, "didactico": {"nota": "Ejemplos didácticos para la clase. No son datos del caso del hotel (esos están en caso.json).", "red_practica": {"unidad": "1 unidad (ejemplo abstracto)", "origen": "O", "destino": "T", "nodos": {"O": "Origen", "A": "Nodo A", "B": "Nodo B", "T": "Destino"}, "arcos": [{"de": "O", "a": "A", "cap": 1}, {"de": "O", "a": "B", "cap": 1}, {"de": "A", "a": "B", "cap": 1}, {"de": "A", "a": "T", "cap": 1}, {"de": "B", "a": "T", "cap": 1}], "secuencia_trayectorias": ["OABT", "OBAT"]}}, "layout": {"aon": {"INICIO": [0.0, 0], "A": [1.75, 0], "B": [3.5, 0], "C": [5.25, 0], "D": [7.0, 1.0], "E": [7.0, -1.4], "H": [8.75, 2.3], "F": [8.75, 0.45], "G": [8.75, -0.95], "I": [8.75, -2.35], "J": [10.5, 2.3], "K": [10.5, -0.25], "L": [12.25, 2.3], "M": [14.0, 0.8], "FIN": [15.75, 0.8]}, "flujo": {"pos": {"O": [0, 0], "A": [1.5, 1.15], "B": [1.5, -1.15], "C": [3.1, 1.75], "D": [2.8, 0], "E": [3.1, -1.75], "T": [4.7, 0]}, "rad": {"C>E": -0.3}, "t_med": {"C>E": 0.27, "D>T": 0.72}, "etiquetas": {"O": "Router", "A": "Core 1", "B": "Core 2", "C": "Habitaciones", "D": "Convenciones", "E": "Área social", "T": "Clientes WiFi"}}, "practica": {"pos": {"O": [0, 0], "A": [1.4, 1.1], "B": [1.4, -1.1], "T": [2.8, 0]}, "etiquetas": {"O": "Origen", "A": "A", "B": "B", "T": "Destino"}}}, "referencia": {"montecarlo": {"n": 100000, "semilla": 2026, "media": 41.62, "desv": 4.15, "plazo": 45, "p_plazo": "79.6 %", "hist": {"b0": 29.0, "ancho": 0.5, "dens": [0.00022, 0.00026, 0.0004, 0.00076, 0.00166, 0.00214, 0.004, 0.00656, 0.00938, 0.01342, 0.01836, 0.02388, 0.0316, 0.03968, 0.04902, 0.05758, 0.06274, 0.07116, 0.0812, 0.08486, 0.08876, 0.0931, 0.09666, 0.09556, 0.096, 0.09482, 0.09024, 0.0851, 0.0827, 0.07658, 0.07012, 0.06248, 0.0569, 0.05174, 0.04588, 0.04004, 0.03554, 0.0314, 0.02854, 0.0233, 0.01868, 0.01588, 0.01326, 0.0108, 0.0083, 0.00694, 0.00508, 0.00432, 0.00346, 0.00258, 0.00144, 0.00128, 0.00096, 0.00086, 0.00064, 0.00036, 0.00032, 0.0002, 0.00014, 8e-05, 4e-05, 0.0, 0.0, 2e-05, 0.0, 2e-05, 0.0]}, "idx_ruta": [{"ruta": "A-B-C-D-H-J-L-M", "p": "70.6 %"}, {"ruta": "A-B-C-D-G-K-M", "p": "23.3 %"}, {"ruta": "A-B-C-E-G-K-M", "p": "5.9 %"}, {"ruta": "A-B-C-E-I-K-M", "p": "0.1 %"}, {"ruta": "A-B-C-D-F-K-M", "p": "0.1 %"}, {"ruta": "A-B-C-E-F-K-M", "p": "0.0 %"}], "idx_act": {"A": "100.0 %", "B": "100.0 %", "C": "100.0 %", "D": "93.9 %", "E": "6.1 %", "F": "0.1 %", "G": "29.2 %", "H": "70.6 %", "I": "0.1 %", "J": "70.6 %", "K": "29.4 %", "L": "70.6 %", "M": "100.0 %"}}}};
 /* Lógica de cálculo del simulador (sin DOM). Se prueba con node: scripts/probar_simulador.js */
@@ -1037,7 +1053,7 @@ const IO = (() => {
   const AM = IO.analisisMarginal(ACTS_CASO, OBJ);
   function pasosComp() {
     const P = [], dur0 = Object.fromEntries(ACTS_CASO.map(a => [a.id, Math.round(TE0[a.id])]));
-    const rutas = (dur, res, obj) => div => dibujarRutas(nuevoSVG(div, "0 0 10 10", true), dur, res, obj);
+    const rutas = (dur, res, obj) => div => dibujarRutas(nuevoSVG(div, "0 0 10 10"), dur, res, obj);
     P.push({ etapa: 1, titulo: `¿Cuánto cuesta terminar en ${OBJ} días?`, dibujar: rutas(dur0, [], OBJ),
       html: `<p>Gerencia quiere el go‑live en <b>${OBJ} días</b> (${fmt(C.D - OBJ)} antes) para tener una semana de marcha blanca antes del congreso.</p><p>Cada barra es una ruta y cada bloque, una actividad. La roja es la crítica: <b>${fmt(C.D)}</b> días.</p>`,
       decir: "Se puede acortar una actividad pagando más: horas extra, envío urgente. ¿Qué acortamos y cuánto cuesta?" });
